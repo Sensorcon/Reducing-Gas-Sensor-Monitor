@@ -1,0 +1,88 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:background="#3F3E3E" >
+
+    <TableLayout
+        android:id="@+id/tlOnOff"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" >
+
+    </TableLayout>
+         
+    <RelativeLayout
+        android:id="@+id/info"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/tlOnOff"
+        android:layout_centerHorizontal="true" >
+        
+         <ImageView
+	        android:id="@+id/bg"
+	        android:layout_width="fill_parent"
+	        android:layout_height="fill_parent"
+	        android:scaleType="fitXY"
+	        android:src="@drawable/bg"/>
+            
+        
+        <TextView
+            android:id="@+id/anchor"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignLeft="@+id/tl"
+            android:textColor="#3F3E3E"
+            android:text="" />
+        
+       	<TableLayout
+	        android:id="@+id/tl"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_marginTop="20dp"
+	        android:layout_centerHorizontal="true" >
+				
+			<TableRow>
+		        	 
+		         <ImageButton
+		             android:id="@+id/red_button"
+		             android:layout_width="wrap_content"
+		        	 android:layout_height="wrap_content" 
+		        	 android:background="@null"
+		        	 android:layout_toRightOf="@+id/ox_button"
+		        	 android:adjustViewBounds="true"  
+				     android:maxWidth="410dp"    
+				     android:scaleType="fitCenter"
+		        	 android:src="@drawable/red_button" >
+         		</ImageButton>
+         	</TableRow>
+    
+         </TableLayout>
+	        
+    	<ImageButton
+        	android:id="@+id/gen_button"
+	        android:layout_width="wrap_content"
+		   	android:layout_height="wrap_content" 
+		   	android:background="@null"
+		   	android:layout_below="@+id/tl"
+		   	android:layout_centerHorizontal="true"
+		   	android:layout_marginTop="10dp"
+		   	android:adjustViewBounds="true"  
+			android:maxWidth="410dp"    
+			android:scaleType="fitCenter"
+ 	 		android:src="@drawable/gen_button" >
+  		</ImageButton>
+
+    	<ImageButton
+    	    android:id="@+id/warning_button"
+    	    android:layout_width="wrap_content"
+    	    android:layout_height="wrap_content"
+    	    android:layout_below="@+id/gen_button"
+    	    android:layout_centerHorizontal="true"
+    	    android:background="@null"
+    	    android:layout_marginTop="30dp"
+        	 android:adjustViewBounds="true"  
+		     android:maxWidth="120dp"    
+		     android:scaleType="fitCenter"
+    	    android:src="@drawable/w_button" />
+         
+    </RelativeLayout>
+</RelativeLayout>
