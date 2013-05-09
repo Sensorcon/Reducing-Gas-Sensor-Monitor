@@ -5,8 +5,6 @@
     <item android:id="@+id/menuHelp" android:title="Help">
         <menu>
             <item android:id="@+id/infoConnections" android:title="Connections"/>
-            <item android:id="@+id/infoData" android:title="Acquiring Data"/>
-            <item android:id="@+id/infoGraphing" android:title="Graphing"/>
         </menu>
     </item>
 </menu>

@@ -5,7 +5,7 @@
     <string name="menu_settings">Settings</string>
     <string name="title_activity_sensordrone_control">Reducing Gas Sensor Monitor</string>
     
-    <string name="intro">To connect, touch connect from the menu.  Once you are connected, your Sensordrone will flash blue.  To graph, touch the numeric readout for the sensor.</string>
+    <string name="intro">To connect, touch connect from the menu.  Once you are connected, your Sensordrone will flash blue.  To stream data from the sensor, touch the left "ON" button. To graph, touch the right button labeled "GRAPH".</string>
     
     <string name="title1">Reducing Gases</string>
     <string name="description1">The reducing gas sensor will show strong responses to reducing gases.  Reducing gases include most fuels like propane, butane and many other hydrocarbons, volatile organic compounds (VOCs) like alcohols, hydrogen, carbon monoxide, hydrogen sulfide, etc.  The resistance of the reducing gas sensor will decrease proportional to the reducing gas concentration (logarithmic response).</string>
