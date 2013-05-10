@@ -22,7 +22,7 @@
 	        android:layout_width="fill_parent"
 	        android:layout_height="fill_parent"
 	        android:scaleType="fitXY"
-	        android:src="@drawable/bg"/>
+	        android:src="@drawable/red_bg"/>
             
         
         <TextView
@@ -91,42 +91,23 @@
                     android:id="@+id/left_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:background="@null"
                     android:adjustViewBounds="true"  
-                     android:maxWidth="175dp"    
+                     android:maxWidth="150dp"    
                      android:scaleType="fitCenter"
-                    android:src="@drawable/red_button_left_released" />
+                    android:src="@drawable/red_button_left" />
         
                 <ImageButton
                     android:id="@+id/right_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="250dp"
+                    android:background="@null"
                     android:adjustViewBounds="true"  
-                     android:maxWidth="175dp"    
+                     android:maxWidth="150dp"    
                      android:scaleType="fitCenter"
-                    android:src="@drawable/red_button_right_released" />
+                    android:src="@drawable/red_button_right" />
                 
-                <ImageButton
-                    android:id="@+id/left_button_pressed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@null"
-                    android:adjustViewBounds="true"  
-                     android:maxWidth="175dp"    
-                     android:scaleType="fitCenter"
-                    android:src="@drawable/red_button_left_pressed" />
-        
-                <ImageButton
-                    android:id="@+id/right_button_pressed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="250dp"
-                    android:background="@null"
-                    android:adjustViewBounds="true"  
-                     android:maxWidth="175dp"    
-                     android:scaleType="fitCenter"
-                    android:src="@drawable/red_button_right_pressed" />
-             </RelativeLayout>
-    
-    </RelativeLayout>
+   	 	</RelativeLayout>
+   	 </RelativeLayout>
 </RelativeLayout>

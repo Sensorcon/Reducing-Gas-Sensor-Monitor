@@ -58,6 +58,7 @@ import android.widget.TableRow.LayoutParams;
 @SuppressLint("NewApi")
 public class MainActivity extends Activity {
 
+	private final int COUNT = 61;
 	/*
 	 * We put our Drone object in a class that extends Application so it
 	 * can be accessed in multiple activities.
@@ -77,8 +78,6 @@ public class MainActivity extends Activity {
 	private ImageButton xButton;
 	private ImageButton leftButton;
     private ImageButton rightButton;
-    private ImageButton leftButtonPressed;
-    private ImageButton rightButtonPressed;
 	private ImageButton redButton;
 	private ImageButton genButton;
 	private ImageButton warningButton;
@@ -88,11 +87,12 @@ public class MainActivity extends Activity {
 	
 	private boolean on;
 	private boolean firstTime;
+	private boolean suspendCount;
 	private int redValue;
     
     public boolean inCountdown1Mode = false;
     public PopupWindow warmUpWindow1;
-    private int countdown1 = 61;
+    private int countdown1 = COUNT;
     private TextView tv_countdown1;
     private Handler countdown1Handler = new Handler();
     private Handler displayValHandler = new Handler();
@@ -256,7 +256,7 @@ public class MainActivity extends Activity {
 //								streamerArray[counter].disable();
 //								
 //								inCountdown1Mode = false;
-//								countdown1 = 61;
+//								countdown1 = COUNT;
 //								warmUpWindow1.dismiss();
 //								countdown1Handler.removeCallbacksAndMessages(null);
 //
@@ -411,12 +411,22 @@ public class MainActivity extends Activity {
 					box.tvConnectInfo.setVisibility(TextView.INVISIBLE);
 					// Notify if there is a low battery
 					lowbatNotify = true;
+					
+					suspendCount = false;
+					// Check to see if reconnect
+					if(on) {
+						// Enable our steamer
+		                box.streamer.enable();
+		                // Enable the sensor
+		                droneApp.myDrone.quickEnable(box.qsSensor);
+					}
 				}
 
 				@Override
 				public void connectionLostEvent(EventObject arg0) {
 
 					// Things to do if we think the connection has been lost.
+					suspendCount = true;
 					
 					// Turn off the blinker
 					myBlinker.disable();
@@ -435,6 +445,7 @@ public class MainActivity extends Activity {
 						}
 					} else {
 						quickMessage("Re-connect failed");
+						suspendCount = false;
 						doOnDisconnect();
 					}
 				}
@@ -713,18 +724,14 @@ public class MainActivity extends Activity {
 		 */
 		popup = new PopupWindow(this);
 		leftButton = (ImageButton)findViewById(R.id.left_button);
-        leftButtonPressed = (ImageButton)findViewById(R.id.left_button_pressed);
         rightButton = (ImageButton)findViewById(R.id.right_button);
-        rightButtonPressed = (ImageButton)findViewById(R.id.right_button_pressed);
 		redButton = (ImageButton)findViewById(R.id.red_button);
 		genButton = (ImageButton)findViewById(R.id.gen_button);
 		warningButton = (ImageButton)findViewById(R.id.warning_button);
 		
-		leftButtonPressed.setVisibility(View.GONE);
-        rightButtonPressed.setVisibility(View.GONE);
-        
         on = false;
         firstTime = true;
+        suspendCount = false;
         
 		leftButton.setOnClickListener(new OnClickListener() {
 			@Override
@@ -865,13 +872,17 @@ public class MainActivity extends Activity {
                 // Disable the sensor
                 droneApp.myDrone.quickDisable(box.qsSensor);
                 
+                
+                
             	//box.streamer.streamHandler.removeCallbacksAndMessages(null);
             	
             	countdown1Handler.removeCallbacksAndMessages(null);
             	displayValHandler.removeCallbacksAndMessages(null);
+            	
+            	tvUpdate(box.tvSensorValue, "--");
                 
                 inCountdown1Mode = false;
-                countdown1 = 61;
+                countdown1 = COUNT;
                 warmUpWindow1.dismiss();
 //                
                 on = false;
@@ -882,13 +893,15 @@ public class MainActivity extends Activity {
  
     public void rightButtonPressed() {
         // Only register a click if the sensor is enabled
-        if (droneApp.myDrone.quickStatus(box.qsSensor)) {
-            if(!inCountdown1Mode) {
-                Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
-                myIntent.putExtra("SensorName", "Reducing Gas");
-                myIntent.putExtra("quickInt", box.qsSensor);
-                startActivity(myIntent);
-            }
+    	if(droneApp.myDrone.isConnected) {
+    		if (on) {
+	            if(!inCountdown1Mode) {
+	                Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
+	                myIntent.putExtra("SensorName", "Reducing Gas");
+	                myIntent.putExtra("quickInt", box.qsSensor);
+	                startActivity(myIntent);
+	            }
+	        }
         } else {
             //
         }
@@ -958,12 +971,15 @@ public class MainActivity extends Activity {
         public void run() {
             
             if(inCountdown1Mode) {
-                countdown1--;
+            	
+            	if(!suspendCount) {
+            		 countdown1--;
+            	}
                 
                 // Average for the last 15 seconds of count down
                 if(countdown1 == 0) {
                     inCountdown1Mode = false;
-                    countdown1 = 61;
+                    countdown1 = COUNT;
                     warmUpWindow1.dismiss();
                     countdown1Handler.removeCallbacksAndMessages(null);
                 }
@@ -1020,12 +1036,20 @@ public class MainActivity extends Activity {
 			public void run() {
 
 				if(inCountdown1Mode) {
-                    inCountdown1Mode = false;
-                    countdown1 = 61;
                     warmUpWindow1.dismiss();
                     countdown1Handler.removeCallbacksAndMessages(null);
                 }
-				
+                
+                inCountdown1Mode = false;
+                countdown1 = COUNT;
+                on = false;
+ 
+                tvUpdate(box.tvSensorValue, "--");
+                // Stop taking measurements
+                box.streamer.disable();
+                // Disable the sensor
+                droneApp.myDrone.quickDisable(box.qsSensor);
+                
 				// Turn off myBlinker
 				box.myBlinker.disable();
 				
