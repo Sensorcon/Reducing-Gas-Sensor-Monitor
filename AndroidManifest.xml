@@ -13,7 +13,7 @@
  	
  	
     <application
-        android:icon="@drawable/red_app_icon"
+        android:icon="@drawable/red_icon"
         android:label="@string/app_name"
         android:theme="@style/AppTheme" 
         android:name=".DroneApplication"
@@ -31,6 +31,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".GraphActivity"></activity>
+        <activity android:name=".InfoActivity"
+            android:screenOrientation="portrait"></activity>
     </application>
 
 </manifest>

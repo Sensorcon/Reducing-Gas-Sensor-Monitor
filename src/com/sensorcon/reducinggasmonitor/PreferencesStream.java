@@ -23,7 +23,7 @@ public class PreferencesStream {
 	private BufferedWriter out;
 	private BufferedReader in;
 	
-	private final String fileName = "reducinggasmonitor_preferences.txt";
+	private final String fileName = "oxidizinggasmonitor_preferences.txt";
 	
 	private File file;
 	

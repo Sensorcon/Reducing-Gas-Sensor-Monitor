@@ -4,21 +4,29 @@ package com.sensorcon.reducinggasmonitor;
 
 import java.util.EventObject;
 
+import com.sensorcon.sensordrone.Drone;
 import com.sensorcon.sensordrone.Drone.DroneEventListener;
 import com.sensorcon.sensordrone.Drone.DroneStatusListener;
 import com.sensorcon.sdhelper.ConnectionBlinker;
+import com.sensorcon.sdhelper.OnOffRunnable;
 import com.sensorcon.sdhelper.SDBatteryStreamer;
 import com.sensorcon.sdhelper.SDHelper;
 import com.sensorcon.sdhelper.SDStreamer;
 
+import android.media.AudioManager;
+import android.media.SoundPool;
+import android.media.SoundPool.OnLoadCompleteListener;
 import android.os.Bundle;
 import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
@@ -26,27 +34,31 @@ import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.View.OnClickListener;
+import android.view.View.OnTouchListener;
+import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupWindow;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
+import android.widget.RelativeLayout;
 import android.widget.TableLayout;
 import android.widget.TableRow;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
-import android.view.MotionEvent;
-import android.view.View.OnTouchListener;
 // Don't let eclipse import android.widget.TableLayout.LayoutParams for your TableRows!
 import android.widget.TableRow.LayoutParams;
 
 /**
- * Sensordrone Control for the Sensordrone
+ * Reducing Gas Monitor for the Sensordrone
  * 
  * Built against Android-10
  * 
@@ -58,44 +70,116 @@ import android.widget.TableRow.LayoutParams;
 @SuppressLint("NewApi")
 public class MainActivity extends Activity {
 
-	private final int COUNT = 61;
+	static String LAST_MAC = "LAST_MAC";
+	static String DISABLE_INTRO = "DISABLE_INTRO";
+	private SharedPreferences preferences;
+	/*
+	 * Constants
+	 */
+	private final int WARMUP_COUNT = 6;
+	private final int BASELINE_COUNT = 3;
+	private final int TICK_FREQ_BASE = 1000;
 	/*
 	 * We put our Drone object in a class that extends Application so it
 	 * can be accessed in multiple activities.
 	 */
 	protected DroneApplication droneApp;
-	
 	/*
 	 * A class which store useful Alert Dialogs
 	 */
 	public AlertInfo myInfo;
 	/*
-	 * Variables for popup info
+	 * Variables for popup windows
 	 */
 	private PopupWindow popup;
 	private TextView tv_popupTitle;
 	private TextView tv_popupInfo;
+	/*
+	 * GUI variables
+	 */
+	private TextView tvConnectionStatus;
+	private TextView tvConnectInfo;
+	private TextView tvSensorValue;
 	private ImageButton xButton;
 	private ImageButton leftButton;
-    private ImageButton rightButton;
+	private ImageButton rightButton;
 	private ImageButton redButton;
 	private ImageButton genButton;
 	private ImageButton warningButton;
+	private ImageView ledOn1;
+	private ImageView ledOn2;
+	private ImageView ledOn3;
+	private ImageView ledOn4;
+	private ImageView ledOn5;
+	private ImageView ledOn6;
+	private ImageView ledOn7;
+	private ImageView ledOn8;
+	private ImageView ledOn9;
+	private LinearLayout ledOnLayout;
 	private PreferencesStream pStream;
 	private LayoutInflater inflater2;
-	private View layout2;
-	
+	private LayoutInflater inflater3;
+    private View layout2;
+    private View layout3;
+    private Button buttonBaseline;
+    private RelativeLayout tickerLayout;
+    private TableRow infoRow;
+	/*
+	 * Program control variables
+	 */
+    private int mode;
 	private boolean on;
 	private boolean firstTime;
 	private boolean suspendCount;
-	private int redValue;
-    
-    public boolean inCountdown1Mode = false;
-    public PopupWindow warmUpWindow1;
-    private int countdown1 = COUNT;
-    private TextView tv_countdown1;
-    private Handler countdown1Handler = new Handler();
-    private Handler displayValHandler = new Handler();
+	private boolean modeChange;
+	private boolean warmedUp;
+	private float val;
+	private float ratio;
+	private int tickFrequency;
+	private float ledStep = 20000;
+	/*
+	 * Tick sound variables
+	 */
+	private SoundPool tickSound;
+	private int soundId;
+	private boolean loaded;
+	private AudioManager am;
+	/*
+	 * Modes
+	 */
+	private final int INFO_MODE = 0;
+	private final int TICKER_MODE = 1;
+	/*
+	 * Baseline calculation variables
+	 */
+	private float baseline;
+	private float[] blValues = new float[WARMUP_COUNT];
+	private float[] blResetValues = new float[BASELINE_COUNT];
+	/*
+	 * Countdown variables
+	 */
+	public boolean inCountdown1Mode = false;
+	private boolean inBaselineMode = false;
+	public PopupWindow warmUpWindow1;
+	private PopupWindow baselineWindow;
+	private int countdown1 = WARMUP_COUNT;
+	private int countdown2 = BASELINE_COUNT;
+	private TextView tv_countdown1;
+	private TextView tv_countdown2;
+	/*
+	 * Handlers
+	 */
+	private Handler countdown1Handler = new Handler();
+	private Handler countdown2Handler = new Handler();
+	private Handler modeHandler = new Handler();
+	private Handler setLEDsHandler = new Handler();
+	private Handler tickHandler = new Handler();
+	
+	/*
+	 * This is a lookup table to decide how many leds to light up in the ticker
+	 */
+	private float[] LUT = {1, (float)0.7, (float)0.6, (float)0.5, (float)0.4, (float)0.3, (float)0.2, (float)0.1, (float)0.09};
+	
 	/*
 	 * Because Android will destroy and re-create things on events like orientation changes,
 	 * we will need a way to store our objects and return them in such a case. 
@@ -124,24 +208,6 @@ public class MainActivity extends Activity {
 		public String[] sensorNames= {
 				"Reducing Gas"
 		};
-
-		// GUI Stuff
-		public TableLayout onOffLayout;
-		public TableLayout infoLayout;
-		public TextView tvConnectionStatus;
-		public TextView tvConnectInfo;
-		public TextView tvSensorValue;
-		public LinearLayout logoLayout;
-		public TextView logoText;
-		public ImageView logoImage;
-		public TableRow sensorRow;
-		
-		
-//		// This is added for the battery voltage
-//		public TableRow bvRow;
-//		public ToggleButton bvToggle;
-//		public TextView bvLabel;
-//		public TextView bvValue;
 		
 		// Another object from the SDHelper library. It helps us set up our pseudo streaming
 		public SDStreamer streamer;
@@ -151,227 +217,15 @@ public class MainActivity extends Activity {
 		// We use this to try and show it only once
 		public boolean lowbatNotify;
 
-
-		/*
-		 * Our TableRow layout
-		 */
-		public LayoutParams trLayout = new LayoutParams(
-				LayoutParams.MATCH_PARENT, 
-				LayoutParams.MATCH_PARENT
-				);
-		/*
-		 * Our TextView label layout
-		 */
-		public LayoutParams tvLayout = new LayoutParams(
-				LayoutParams.MATCH_PARENT, 
-				LayoutParams.MATCH_PARENT, 
-				0.45f
-				);
-
-		/*
-		 * Our ToggleButton layout
-		 */
-		public LayoutParams tbLayout = new LayoutParams(
-				LayoutParams.MATCH_PARENT, 
-				LayoutParams.MATCH_PARENT, 
-				0.1f
-				);
-
 		// Our constructor to set up the GUI
-		public Storage(Context context, TableLayout mainLayout) {
+		public Storage(Context context) {
 
-			onOffLayout = mainLayout;
-
-			onOffLayout.setBackground(context.getResources().getDrawable(R.drawable.bg));
-			
 			qsSensor = droneApp.myDrone.QS_TYPE_REDUCING_GAS;
 
 			// This will Blink our Drone, once a second, Blue
 			myBlinker = new ConnectionBlinker(droneApp.myDrone, 1000, 0, 0, 255);
 
-			// Set up the TableRows
-			sensorRow = new TableRow(context);
-			sensorRow.setPadding(10, 10, 10, 0);
-
-			tvSensorValue = new TextView(context);
 			streamer = new SDStreamer(droneApp.myDrone, qsSensor);
-
-			sensorRow.setLayoutParams(trLayout); // Set the layout
-			
-			tvSensorValue.setBackgroundResource(R.drawable.valuegradient);
-			tvSensorValue.setTextColor(Color.WHITE);
-			tvSensorValue.setGravity(Gravity.CENTER);
-			tvSensorValue.setText("--"); // Start off with -- for the sensor value on create
-			tvLayout.setMargins(30, 30, 30, 30);
-			tvSensorValue.setLayoutParams(tvLayout); // Set the layout
-			tvSensorValue.setTextSize(60);
-
-			/*
-			 * Add all of our UI elements to the TableRow.
-			 * (Order is important!)
-			 */
-			sensorRow.addView(tvSensorValue);
-
-				/*
-				 * The general behavior of the program is as follows:
-				 * 
-				 * When a sensor is enabled:
-				 * 1) When this button is toggled, it executes the Drone qsEnable method 
-				 * for the sensor. This updates the sensors status, and triggers its section
-				 * of the DroneStatusListener. It also sets up the myStreamer object used 
-				 * to make measurements at a specified interval.
-				 * 2) When the DroneStatusListener is triggered, it runs the sensor's measurement method.
-				 * When the measurement comes back, it triggers the DroneEventListener section 
-				 * for that sensor. There, it updates the display with it's value, and uses the myStreamer
-				 * handler to ask for a measurement again automatically at the defined interval.
-				 * 2-b) This repeats until the myStreamer object is disabled.
-				 * 
-				 * When a sensor is disabled:
-				 * 1) The mySteamer object is stopped, preventing more measurements from being requested.
-				 * The Drone qsDisable method is called for the appropriate sensor (This also triggers
-				 * the corresponding DroneStatusEvent!).
-				 */
-
-//					/*
-//					 * Turn the sensors on/off
-//					 */
-//					@Override
-//					public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-//						// If the Sensordrone is not connected, don't allow toggling of the sensors
-//						if (!droneApp.myDrone.isConnected) {
-//							toggleButtons[counter].setChecked(false);
-//						} else {
-//							if (toggleButtons[counter].isChecked() ) {
-//								
-//								showWarmupWindow();
-//								countdown1Handler.post(countdown1Runnable);
-//								
-//								// Enable our steamer
-//								streamerArray[counter].enable();
-//								// Enable the sensor
-//								droneApp.myDrone.quickEnable(qsSensors[counter]);
-//
-//							} else {
-//								// Stop taking measurements
-//								streamerArray[counter].disable();
-//								
-//								inCountdown1Mode = false;
-//								countdown1 = COUNT;
-//								warmUpWindow1.dismiss();
-//								countdown1Handler.removeCallbacksAndMessages(null);
-//
-//								// Disable the sensor
-//								droneApp.myDrone.quickDisable(qsSensors[counter]);
-//
-//							}
-//						}
-//					}
-//				});
-			
-			// Connection Status TextView
-			tvConnectionStatus = new TextView(context);
-			tvConnectionStatus.setText("Disconnected");
-			tvConnectionStatus.setTextColor(Color.WHITE);
-			tvConnectionStatus.setTextSize(18);
-			tvConnectionStatus.setPadding(10, 10, 10, 10);
-			tvConnectionStatus.setGravity(Gravity.CENTER);
-			// Tell people how to connect
-			tvConnectInfo = new TextView(context);
-			tvConnectInfo.setText("Connect from your device's menu");
-			tvConnectInfo.setTextColor(Color.WHITE);
-			tvConnectInfo.setTextSize(18);
-			tvConnectInfo.setPadding(10, 10, 10, 10);
-			tvConnectInfo.setGravity(Gravity.CENTER);
-			tvConnectInfo.setVisibility(TextView.VISIBLE);
-			
-
-			// Our top Picture Thing
-			logoLayout = new LinearLayout(context);
-			logoText = new TextView(context);
-			logoText.setBackgroundColor(Color.WHITE);
-			logoText.setTextColor(Color.BLACK);
-			logoText.setBackgroundColor(Color.parseColor("#B0B0B0"));
-			logoText.setText("Reducing Gas Sensor Monitor   ");
-			logoText.setTextSize(22);
-			logoImage = new ImageView(context);
-			Drawable img = getResources().getDrawable(R.drawable.red_icon);
-			logoImage.setImageDrawable(img);
-			logoImage.setAdjustViewBounds(true);
-			logoImage.setMaxHeight(100);
-			logoLayout.addView(logoText);
-			logoLayout.addView(logoImage);
-			logoLayout.setGravity(Gravity.CENTER);
-			logoLayout.setBackgroundResource(R.drawable.logogradient);
-			logoLayout.setPadding(10,10,10,10);
-
-			
-//			// Measuring battery voltage is not part of the API's quickSyetem, so we will have
-//			// to set up a table row manually here
-//			bvRow = new TableRow(context);
-//			bvRow.setLayoutParams(trLayout);
-//			bvRow.setPadding(10, 10, 10, 0);
-//			bvToggle = new ToggleButton(context);
-//			bvToggle.setLayoutParams(tbLayout);
-//			bvLabel = new TextView(context);
-//			bvLabel.setLayoutParams(tvLayout);
-//			bvLabel.setText("Battery Voltage");
-//			bvValue = new TextView(context);
-//			bvValue.setBackgroundResource(R.drawable.valuegradient);
-//			bvValue.setTextColor(Color.WHITE);
-//			bvValue.setGravity(Gravity.CENTER);
-//			bvValue.setLayoutParams(tvLayout);
-//			bvValue.setText("--");
-			
-			
-//			// Use our Battery Streamer from the SDHelper library
-//			final SDBatteryStreamer bvStreamer = new SDBatteryStreamer(droneApp.myDrone);
-//			
-//			// Set up our graphing
-//			bvValue.setOnClickListener(new OnClickListener() {
-//				
-//				@Override
-//				public void onClick(View v) {
-//					// Only graph if the toggle button is checked
-//					if (bvToggle.isChecked()){
-//						Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
-//						myIntent.putExtra("SensorName", "Battery Voltage");
-//						// We'll use a made-up number outside of the range of the quickSystem
-//						// that we can parse for the battery voltage
-//						myIntent.putExtra("quickInt", 42); 
-//						startActivity(myIntent);
-//					}
-//				}
-//			});
-//			
-//			// Set up our toggle button
-//			bvToggle.setOnCheckedChangeListener(new OnCheckedChangeListener() {
-//
-//				@Override
-//				public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-//					// Don't do anything if not connected
-//					if (!droneApp.myDrone.isConnected) {
-//						bvToggle.setChecked(false);
-//					} else {
-//						if (bvToggle.isChecked() ) {
-//							// Enable our steamer
-//							bvStreamer.enable();
-//							// Measure the voltage once to trigger streaming
-//							droneApp.myDrone.measureBatteryVoltage();
-//
-//						} else {
-//							// Stop taking measurements
-//							bvStreamer.disable();
-//							
-//						}
-//					}	
-//				}
-//			});
-			
-//			// Add it all to the row. We'll add the row to the main layout in onCreate
-//			bvRow.addView(bvToggle);
-//			bvRow.addView(bvLabel);
-//			bvRow.addView(bvValue);
-			
 
 			/*
 			 * Let's set up our Drone Event Listener.
@@ -399,6 +253,10 @@ public class MainActivity extends Activity {
 				@Override
 				public void connectEvent(EventObject arg0) {
 					
+					Editor prefEditor = preferences.edit();
+					prefEditor.putString(LAST_MAC, droneApp.myDrone.lastMAC);
+					prefEditor.commit();
+					
 					// Things to do when we connect to a Sensordrone
 					quickMessage("Connected!");
 					tvUpdate(tvConnectionStatus, "Connected to: " + droneApp.myDrone.lastMAC);
@@ -408,24 +266,28 @@ public class MainActivity extends Activity {
 					myBlinker.enable();
 					myBlinker.run();
 					// People don't need to know how to connect if they are already connected
-					box.tvConnectInfo.setVisibility(TextView.INVISIBLE);
+					tvConnectInfo.setVisibility(TextView.INVISIBLE);
 					// Notify if there is a low battery
 					lowbatNotify = true;
 					
-					suspendCount = false;
-					// Check to see if reconnect
-					if(on) {
-						// Enable our steamer
-		                box.streamer.enable();
-		                // Enable the sensor
-		                droneApp.myDrone.quickEnable(box.qsSensor);
-					}
+                    suspendCount = false;
+                    // Check to see if reconnect
+                    if(on) {
+                        // Enable our steamer
+                        box.streamer.enable();
+                        // Enable the sensor
+                        droneApp.myDrone.quickEnable(box.qsSensor);
+                    }
 				}
 
 				@Override
 				public void connectionLostEvent(EventObject arg0) {
 
-					// Things to do if we think the connection has been lost.
+					/*
+					 * Things to do if we think the connection has been lost.
+					 */
+					
+					// If in the middle of a countdown, stop it
 					suspendCount = true;
 					
 					// Turn off the blinker
@@ -468,9 +330,9 @@ public class MainActivity extends Activity {
 
 				@Override
 				public void reducingGasMeasured(EventObject arg0) {
-					tvUpdate(tvSensorValue, String.format("%.0f", droneApp.myDrone.reducingGas_Ohm) + " Ohms");
-					//tvSensorValue.setText(Integer.toString((int)droneApp.myDrone.reducingGas_Ohm) + " Ohms");
-					//redValue = (int)droneApp.myDrone.reducingGas_Ohm;
+					val = droneApp.myDrone.reducingGas_Ohm ;
+					
+					tvUpdate(tvSensorValue, String.format("%.0f", val/1000) + " KOhms");
 					streamer.streamHandler.postDelayed(streamer, droneApp.streamingRate);
 				}
 
@@ -600,7 +462,6 @@ public class MainActivity extends Activity {
 
 				@Override
 				public void oxidizingGasStatus(EventObject arg0) {
-				
 				}
 
 				@Override
@@ -625,15 +486,11 @@ public class MainActivity extends Activity {
 				}
 
 				@Override
-				public void temperatureStatus(EventObject arg0) {
-					
-
+				public void temperatureStatus(EventObject arg0) {				
 				}
 
 				@Override
 				public void unknownStatus(EventObject arg0) {
-
-
 				}
 			};
 			
@@ -645,7 +502,10 @@ public class MainActivity extends Activity {
 			 */
 			droneApp.myDrone.registerDroneEventListener(deListener);
 			droneApp.myDrone.registerDroneStatusListener(dsListener);
+			
+
 		} // Constructor
+
 	}
 
 	/*
@@ -678,7 +538,6 @@ public class MainActivity extends Activity {
 	public void onDestroy() {
 		super.onDestroy();
 
-
 		if (isFinishing()) {
 			// Try and nicely shut down
 			doOnDisconnect();
@@ -708,7 +567,6 @@ public class MainActivity extends Activity {
 
 		// Set up out AlertInfo
 		myInfo = new AlertInfo(this);
-
 		
 		/*
 		 * If we have destroyed and recreated our activity, due to something like
@@ -717,34 +575,73 @@ public class MainActivity extends Activity {
 		 * We want to restore it, because our Drone object remembers important things...
 		 * like if it was connected or not.
 		 */
-		box = (Storage) getLastNonConfigurationInstance();
+		box = new Storage(this);
 		
 		/*
-		 * Set up all of the popup window stuff for the info buttons
+		 * Set up all of the gui stuff
 		 */
+		tvConnectionStatus = (TextView)findViewById(R.id.connectionStatus);
+		tvConnectInfo = (TextView)findViewById(R.id.connectInfo);
+		tvSensorValue = (TextView)findViewById(R.id.tvSensorValue);
 		popup = new PopupWindow(this);
 		leftButton = (ImageButton)findViewById(R.id.left_button);
-        rightButton = (ImageButton)findViewById(R.id.right_button);
+		rightButton = (ImageButton)findViewById(R.id.right_button);
 		redButton = (ImageButton)findViewById(R.id.red_button);
 		genButton = (ImageButton)findViewById(R.id.gen_button);
 		warningButton = (ImageButton)findViewById(R.id.warning_button);
+		ledOn1 = (ImageView)findViewById(R.id.led_on1);
+		ledOn2 = (ImageView)findViewById(R.id.led_on2);
+		ledOn3 = (ImageView)findViewById(R.id.led_on3);
+		ledOn4 = (ImageView)findViewById(R.id.led_on4);
+		ledOn5 = (ImageView)findViewById(R.id.led_on5);
+		ledOn6 = (ImageView)findViewById(R.id.led_on6);
+		ledOn7 = (ImageView)findViewById(R.id.led_on7);
+		ledOn8 = (ImageView)findViewById(R.id.led_on8);
+		ledOn9 = (ImageView)findViewById(R.id.led_on9);
+		buttonBaseline = (Button)findViewById(R.id.zero_button);
+		tickerLayout = (RelativeLayout)findViewById(R.id.ticker_layout);
+		ledOnLayout = (LinearLayout)findViewById(R.id.led_group2);
+		infoRow = (TableRow)findViewById(R.id.info_row);
 		
-        on = false;
-        firstTime = true;
-        suspendCount = false;
-        
+		/*
+		 * Info mode stuff is invisible
+		 */
+		ledOn1.setVisibility(View.INVISIBLE);
+		ledOn2.setVisibility(View.INVISIBLE);
+		ledOn3.setVisibility(View.INVISIBLE);
+		ledOn4.setVisibility(View.INVISIBLE);
+		ledOn5.setVisibility(View.INVISIBLE);
+		ledOn6.setVisibility(View.INVISIBLE);
+		ledOn7.setVisibility(View.INVISIBLE);
+		ledOn8.setVisibility(View.INVISIBLE);
+		ledOn9.setVisibility(View.INVISIBLE);
+		ledOnLayout.setVisibility(View.INVISIBLE);
+		tickerLayout.setVisibility(View.INVISIBLE);
+		
+		// Initialize SharedPreferences
+		preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+		
+		on = false;
+		firstTime = true;
+		suspendCount = false;
+		modeChange = false;
+		warmedUp = false;
+		mode = INFO_MODE;
+		val = 0;
+		tickFrequency = 1000;
+		
 		leftButton.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				leftButtonPressed();
-			}	
+            @Override
+            public void onClick(View v) {
+                leftButtonPressed();
+            }   
 		});
 		
 		rightButton.setOnClickListener(new OnClickListener() {
-			@Override
-			public void onClick(View v) {
-				rightButtonPressed();
-			}	
+            @Override
+            public void onClick(View v) {
+                rightButtonPressed();
+            }   
 		});
 		
 		LayoutInflater inflater1 = (LayoutInflater)this.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -755,11 +652,20 @@ public class MainActivity extends Activity {
 		popup = new PopupWindow(
 				layout1, 
 				550, 
-				550, 
+				LayoutParams.WRAP_CONTENT, 
 				true);
 		
 		tv_popupTitle = (TextView)layout1.findViewById(R.id.popupTitle);
 		tv_popupInfo = (TextView)layout1.findViewById(R.id.popupInfo);
+		
+		buttonBaseline.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				if(warmedUp) {
+					resetBaseline();
+				}
+			}	
+		});
 		
 		xButton = (ImageButton)layout1.findViewById(R.id.xButton);
 		xButton.setOnClickListener(new OnClickListener() {
@@ -790,41 +696,35 @@ public class MainActivity extends Activity {
 			}		
 		});	
 		
-		inflater2 = (LayoutInflater)this.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-		 
-        layout2 = inflater2.inflate(R.layout.warmup,
-                (ViewGroup) findViewById(R.id.warmup_element));
-        
-        tv_countdown1 = (TextView)layout2.findViewById(R.id.countdown);
-        
 		/*
-		 * But what if this is the first time the app has loaded?
+		 * Set up warmup window
 		 */
-		if (box != null) {
-			// Remove the (old) views so we can re-add them
-			box.onOffLayout.removeAllViews();
-			// It's very important that this get called again
-			box.onOffLayout = (TableLayout)findViewById(R.id.tlOnOff);
-			// Add in our top image
-			box.onOffLayout.addView(box.logoLayout);
-			// Re-add the TableRows
-			box.onOffLayout.addView(box.sensorRow);
-//			box.onOffLayout.addView(box.bvRow);
-			box.onOffLayout.addView(box.tvConnectionStatus);
-			box.onOffLayout.addView(box.tvConnectInfo);
-		}
-		if (box == null) {
+		inflater2 = (LayoutInflater)this.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
-			// Set up a new box, and all of it's objects
-			box = new Storage(this, (TableLayout)findViewById(R.id.tlOnOff));
-			// Add in our top image
-			box.onOffLayout.addView(box.logoLayout);
-			// Add the TableRows to the TableLayout
-			box.onOffLayout.addView(box.sensorRow);
-//			box.onOffLayout.addView(box.bvRow);
-			box.onOffLayout.addView(box.tvConnectionStatus);
-			box.onOffLayout.addView(box.tvConnectInfo);
-		}
+		layout2 = inflater2.inflate(R.layout.warmup,
+				(ViewGroup) findViewById(R.id.warmup_element));
+		
+		tv_countdown1 = (TextView)layout2.findViewById(R.id.countdown);
+		
+		/*
+		 * Set up baseline window
+		 */
+		inflater3 = (LayoutInflater)this.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+		layout3 = inflater3.inflate(R.layout.baseline,
+				(ViewGroup) findViewById(R.id.baseline_element));
+		
+		tv_countdown2 = (TextView)layout3.findViewById(R.id.bl_countdown);
+		
+		tickSound = new SoundPool(10, AudioManager.STREAM_ALARM, 0);
+		tickSound.setOnLoadCompleteListener(new OnLoadCompleteListener() {
+			@Override
+			public void onLoadComplete(SoundPool soundPool, int sampleId, int status) {
+				loaded = true;
+			}
+		});
+		soundId = tickSound.load(this, R.raw.tick, 1);
+		am = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
 		
 		// Check to see if user still wants intro screen to show
 		pStream = new PreferencesStream();
@@ -835,78 +735,95 @@ public class MainActivity extends Activity {
 		if(!preferences[0].equals("DISABLE INTRO")){
 			showIntroDialog();
 		}
-		
-		// Set up our background
-		Drawable bgGradient = getResources().getDrawable(R.drawable.tablegradient);
-		box.onOffLayout.setBackgroundDrawable(bgGradient);
-		box.onOffLayout.setPadding(10, 10, 10, 10);
+	
 		warmUpWindow1 = new PopupWindow(this);
 	}
 
+	/**
+	 * Starts the baseline count
+	 */
+	public void resetBaseline() {
+		int w = tickerLayout.getWidth();
+		int h = tickerLayout.getHeight();
+	
+		baselineWindow = new PopupWindow(layout3, w, h, true);
+		baselineWindow.setOutsideTouchable(true);
+		baselineWindow.setFocusable(false);
+		
+		showBaselineWindow(h);
+		countdown2Handler.post(countdown2Runnable);
+	}
+	
+	/**
+	 * What to do when left button is pressed
+	 */
 	public void leftButtonPressed() {
-        
-        if(droneApp.myDrone.isConnected) {
-            if(!on) {
-            	// Enable our steamer
-                box.streamer.enable();
-                // Enable the sensor
-                droneApp.myDrone.quickEnable(box.qsSensor);
-                
-                on = true;
-                
-                int w = box.tvSensorValue.getWidth();
-                int h = box.tvSensorValue.getHeight();
-                
-                if(firstTime) {
-                	firstTime = false;
-	                warmUpWindow1 = new PopupWindow(layout2, w, h, true);
-	                warmUpWindow1.setOutsideTouchable(true);
-	                warmUpWindow1.setFocusable(false);
-                }
-                
-                showWarmupWindow(h);
-                countdown1Handler.post(countdown1Runnable);
-            } else {
-            	// Stop taking measurements
-                box.streamer.disable();
-                // Disable the sensor
-                droneApp.myDrone.quickDisable(box.qsSensor);
-                
-                
-                
-            	//box.streamer.streamHandler.removeCallbacksAndMessages(null);
-            	
-            	countdown1Handler.removeCallbacksAndMessages(null);
-            	displayValHandler.removeCallbacksAndMessages(null);
-            	
-            	tvUpdate(box.tvSensorValue, "--");
-                
-                inCountdown1Mode = false;
-                countdown1 = COUNT;
-                warmUpWindow1.dismiss();
-//                
-                on = false;
-                
-            }
-        }
-    }
- 
-    public void rightButtonPressed() {
-        // Only register a click if the sensor is enabled
-    	if(droneApp.myDrone.isConnected) {
-    		if (on) {
-	            if(!inCountdown1Mode) {
-	                Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
-	                myIntent.putExtra("SensorName", "Reducing Gas");
-	                myIntent.putExtra("quickInt", box.qsSensor);
-	                startActivity(myIntent);
-	            }
-	        }
-        } else {
-            //
-        }
-    }
-    
+		if(droneApp.myDrone.isConnected) {
+			if(!on) {
+				// Enable our steamer
+				box.streamer.enable();
+				// Enable the sensor
+				droneApp.myDrone.quickEnable(box.qsSensor);
+				
+				on = true;
+				
+				int w = tvSensorValue.getWidth();
+				int h = tvSensorValue.getHeight();
+				
+				if(firstTime) {		
+					firstTime = false;
+					warmUpWindow1 = new PopupWindow(layout2, w, h, true);
+					warmUpWindow1.setOutsideTouchable(true);
+					warmUpWindow1.setFocusable(false);
+				}
+				
+				if(warmedUp) {
+					warmedUp = false;
+				}
+				
+				showWarmupWindow(h);
+				countdown1Handler.post(countdown1Runnable);
+			} else {
+				// Stop taking measurements
+				box.streamer.disable();
+				// Disable the sensor
+				droneApp.myDrone.quickDisable(box.qsSensor);
+				
+				on = false;
+				warmedUp = false;
+				tvUpdate(tvSensorValue, "--");
+				
+				inCountdown1Mode = false;
+				countdown1 = WARMUP_COUNT;
+				warmUpWindow1.dismiss();
+				countdown1Handler.removeCallbacksAndMessages(null);
+				countdown2Handler.removeCallbacksAndMessages(null);
+				tickHandler.removeCallbacksAndMessages(null);
+				setLEDsHandler.removeCallbacksAndMessages(null);
+			}
+		}
+	}
+	
+	/**
+	 * What to do when right button is pressed
+	 */
+	public void rightButtonPressed() {
+		
+		// Only register a click if the sensor is enabled
+		if(droneApp.myDrone.isConnected) {
+			if (on) {
+				if(!inCountdown1Mode) {
+					Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
+					myIntent.putExtra("SensorName", "Reducing Gas");
+					myIntent.putExtra("quickInt", box.qsSensor);
+					startActivity(myIntent);
+				}
+			} else {
+				//
+			}
+		}
+	}
+	
 	/**
 	 * Loads the dialog shown at startup
 	 */
@@ -927,20 +844,41 @@ public class MainActivity extends Activity {
 		     }).show();
 	}
 	
+	/**
+	 * Performs a single tick
+	 * 
+	 * @return	True if successful
+	 */
+	public boolean tick() {
+		float volume = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+		float max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+		volume = volume/max;
+		
+		if(loaded) {
+			tickSound.play(soundId, volume, volume, 1, 0, 1f);
+			return true;
+		}
+		else {
+			return false;
+		}
+	}
+	
 	public void showWarmupWindow(int h) {
-        inCountdown1Mode = true;
-        warmUpWindow1.showAsDropDown(box.tvSensorValue, 0, -h);
-    }
+		inCountdown1Mode = true;
+		warmUpWindow1.showAsDropDown(tvSensorValue, 0, -h);
+	}
+	
+	public void showBaselineWindow(int h) {
+		inBaselineMode = true;
+		baselineWindow.showAsDropDown(tickerLayout, 0, -h);
+	}
 	
 	/**
 	 * Makes informative popup appear
 	 */
 	public void showRedPopup() {
-		tv_popupTitle.setText(R.string.title1);
-		tv_popupInfo.setText(R.string.description1);
-		
-		// The code below assumes that the root container has an id called 'main'
-		popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
+		Intent myIntent = new Intent(getApplicationContext(), InfoActivity.class);
+		startActivity(myIntent);
 	}
 	
 	/**
@@ -951,7 +889,7 @@ public class MainActivity extends Activity {
 		tv_popupInfo.setText(R.string.description3);
 		
 		// The code below assumes that the root container has an id called 'main'
-		popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
+		 popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
 	}
 	
 	/**
@@ -962,36 +900,377 @@ public class MainActivity extends Activity {
 		tv_popupInfo.setText(R.string.warning);
 		
 		// The code below assumes that the root container has an id called 'main'
-		popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
+		 popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
 	}
 	
+	/*
+	 * Controls timing thread for countdown
+	 */
 	public Runnable countdown1Runnable = new Runnable() {
-		 
-        @Override
-        public void run() {
-            
-            if(inCountdown1Mode) {
-            	
-            	if(!suspendCount) {
-            		 countdown1--;
-            	}
-                
-                // Average for the last 15 seconds of count down
-                if(countdown1 == 0) {
-                    inCountdown1Mode = false;
-                    countdown1 = COUNT;
-                    warmUpWindow1.dismiss();
-                    countdown1Handler.removeCallbacksAndMessages(null);
-                }
-                else {
-                    tv_countdown1.setText(Integer.toString(countdown1));
-                    countdown1Handler.postDelayed(this, 1000);
-                }
-                
-            }
-        }
-    };
+
+		@Override
+		public void run() {
+			
+			if(inCountdown1Mode) {
+				if(!suspendCount) {
+					countdown1--;
+				}
+				
+				// Average for the last 15 seconds of count down
+				if(countdown1 == 0) {
+					inCountdown1Mode = false;
+					countdown1 = WARMUP_COUNT;
+					warmUpWindow1.dismiss();
+					warmedUp = true;
+					
+					if(mode == TICKER_MODE) {
+						tickHandler.post(tickRunnable);
+					}
+					
+					blValues[0] = val;
+					Log.d("chris", "blValues[0]: " + Float.toString(blValues[0]));
+					
+					float sum = 0;
+					for(int i = 0; i < blValues.length; i++) {
+						sum += blValues[i];
+					}
+					
+					Log.d("chris", "Sum: " + Float.toString(sum));
+					
+					float ave = sum/(float)blValues.length;
+					
+					Log.d("chris", "Average: " + Float.toString(ave));
+					
+					baseline = ave;
+					
+					countdown1Handler.removeCallbacksAndMessages(null);
+				}
+				else {
+					blValues[countdown1] = val;
+					tv_countdown1.setText(Integer.toString(countdown1));
+					Log.d("chris", "blValues[" + Integer.toString(countdown1) + "]: " + Float.toString(blValues[countdown1]));
+					countdown1Handler.postDelayed(this, 1000);
+				}
+				
+			}
+		}
+	};
 	
+	/*
+	 * Controls timing thread for countdown
+	 */
+	public Runnable countdown2Runnable = new Runnable() {
+
+		@Override
+		public void run() {
+			
+			if(inBaselineMode) {
+				if(!suspendCount) {
+					countdown2--;
+				}
+				
+				// Average for the last 15 seconds of count down
+				if(countdown2 == 0) {
+					inBaselineMode = false;
+					countdown2 = BASELINE_COUNT;
+					baselineWindow.dismiss();
+					
+					blResetValues[0] = val;
+					Log.d("chris", "blResetValues[0]: " + Float.toString(blResetValues[0]));
+					
+					float sum = 0;
+					for(int i = 0; i < blResetValues.length; i++) {
+						sum += blResetValues[i];
+					}
+					
+					Log.d("chris", "Sum: " + Float.toString(sum));
+					
+					float ave = sum/(float)blResetValues.length;
+					
+					Log.d("chris", "Average: " + Float.toString(ave));
+					
+					baseline = ave;
+					
+					countdown2Handler.removeCallbacksAndMessages(null);
+				}
+				else {
+					blResetValues[countdown2] = val;
+					Log.d("chris", "blResetValues[" + Integer.toString(countdown2) + "]: " + Float.toString(blResetValues[countdown2]));
+					tv_countdown2.setText(Integer.toString(countdown2));
+					countdown2Handler.postDelayed(this, 1000);
+				}
+				
+			}
+		}
+	};
+	
+	public Runnable changeModeRunnable = new Runnable() {
+
+		@Override
+		public void run() {
+			
+			if(modeChange == true) {
+				if(mode == INFO_MODE) {
+					setLEDsHandler.removeCallbacksAndMessages(null);
+					tickHandler.removeCallbacksAndMessages(null);
+					
+					infoRow.setVisibility(View.VISIBLE);
+					
+					tickerLayout.setVisibility(View.INVISIBLE);
+					ledOnLayout.setVisibility(View.INVISIBLE);
+				}
+				else {
+					setLEDsHandler.post(setLEDsRunnable);
+					
+					if(warmedUp) {
+						tickHandler.post(tickRunnable);
+					}
+					
+					ledOnLayout.setVisibility(View.VISIBLE);
+					
+					infoRow.setVisibility(View.INVISIBLE);
+					
+					tickerLayout.setVisibility(View.VISIBLE);
+				}
+				modeChange = false;
+			}
+		}
+	};
+	
+	public Runnable setLEDsRunnable = new Runnable() {
+
+		@Override
+		public void run() {
+			
+			ratio = val/baseline;
+			Log.d("chris","Val: " + Float.toString(val));
+			Log.d("chris","Baseline: " + Float.toString(baseline));
+			Log.d("chris","Ratio: " + Float.toString(ratio));
+			
+			if(mode == TICKER_MODE) {
+				if(ratio > LUT[1]) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.INVISIBLE);
+					ledOn3.setVisibility(View.INVISIBLE);
+					ledOn4.setVisibility(View.INVISIBLE);
+					ledOn5.setVisibility(View.INVISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = TICK_FREQ_BASE;
+				}
+				else if((ratio < LUT[1]) && (ratio > LUT[2])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.INVISIBLE);
+					ledOn4.setVisibility(View.INVISIBLE);
+					ledOn5.setVisibility(View.INVISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 800;
+				}
+				else if((ratio < LUT[2]) && (ratio > LUT[3])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.INVISIBLE);
+					ledOn5.setVisibility(View.INVISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 600;
+				}
+				else if((ratio < LUT[3]) && (ratio > LUT[4])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.INVISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 400;
+				}
+				else if((ratio < LUT[4]) && (ratio > LUT[5])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.VISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 200;
+				}
+				else if((ratio < LUT[5]) && (ratio > LUT[6])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.VISIBLE);
+					ledOn6.setVisibility(View.VISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 100;
+				}
+				else if((ratio < LUT[6]) && (ratio > LUT[7])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.VISIBLE);
+					ledOn6.setVisibility(View.VISIBLE);
+					ledOn7.setVisibility(View.VISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 75;
+				}
+				else if((ratio < LUT[7]) && (ratio > LUT[8])) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.VISIBLE);
+					ledOn6.setVisibility(View.VISIBLE);
+					ledOn7.setVisibility(View.VISIBLE);
+					ledOn8.setVisibility(View.VISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 60;
+				}
+				else if(ratio < LUT[8]) {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.VISIBLE);
+					ledOn3.setVisibility(View.VISIBLE);
+					ledOn4.setVisibility(View.VISIBLE);
+					ledOn5.setVisibility(View.VISIBLE);
+					ledOn6.setVisibility(View.VISIBLE);
+					ledOn7.setVisibility(View.VISIBLE);
+					ledOn8.setVisibility(View.VISIBLE);
+					ledOn9.setVisibility(View.VISIBLE);
+					
+					tickFrequency = 50;
+				}
+				else {
+					ledOn1.setVisibility(View.VISIBLE);
+					ledOn2.setVisibility(View.INVISIBLE);
+					ledOn3.setVisibility(View.INVISIBLE);
+					ledOn4.setVisibility(View.INVISIBLE);
+					ledOn5.setVisibility(View.INVISIBLE);
+					ledOn6.setVisibility(View.INVISIBLE);
+					ledOn7.setVisibility(View.INVISIBLE);
+					ledOn8.setVisibility(View.INVISIBLE);
+					ledOn9.setVisibility(View.INVISIBLE);
+					
+					tickFrequency = 1000;
+				}
+				
+				setLEDsHandler.postDelayed(this, 1000);
+			}
+			else {
+				setLEDsHandler.removeCallbacksAndMessages(null);
+			}
+		}
+	};
+	
+	public Runnable tickRunnable = new Runnable() {
+
+		@Override
+		public void run() {
+			if(mode == TICKER_MODE) {
+				if(warmedUp) {
+					tick();
+				}
+				tickHandler.postDelayed(this, tickFrequency);
+			}
+			else {
+				tickHandler.removeCallbacksAndMessages(null);
+			}
+		}
+	};
+	
+	public int pxToDp(int px) {
+		
+		float d = this.getResources().getDisplayMetrics().density;
+		int ret = (int)(px * d); // margin in pixels
+		return ret;
+	}
+	
+	public void onRadioButtonClicked(View view) {
+		
+		boolean checked = ((RadioButton)view).isChecked();
+		
+		switch(view.getId()) {
+		case R.id.rb_info_mode:
+			if(checked) {
+				mode = INFO_MODE;
+				modeChange = true;
+				modeHandler.post(changeModeRunnable);
+			}
+			break;
+		case R.id.rb_ticker_mode:
+			if(checked) {
+				mode = TICKER_MODE;
+				modeChange = true;
+				modeHandler.post(changeModeRunnable);
+			}
+			break;
+		case R.id.rb_low:
+			if(checked) {
+				LUT[0] = 1;
+				LUT[1] = (float)0.7;
+				LUT[2] = (float)0.6;
+				LUT[3] = (float)0.5;
+				LUT[4] = (float)0.4;
+				LUT[5] = (float)0.3;
+				LUT[6] = (float)0.2;
+				LUT[7] = (float)0.1;
+				LUT[8] = (float)0.09;
+			}
+			break;
+		case R.id.rb_medium:
+			if(checked) {
+				LUT[0] = 1;
+				LUT[1] = (float)0.85;
+				LUT[2] = (float)0.8;
+				LUT[3] = (float)0.75;
+				LUT[4] = (float)0.7;
+				LUT[5] = (float)0.65;
+				LUT[6] = (float)0.6;
+				LUT[7] = (float)0.55;
+				LUT[8] = (float)0.545;
+			}
+			break;
+		case R.id.rb_high:
+			if(checked) {
+				LUT[0] = 1;
+				LUT[1] = (float)0.925;
+				LUT[2] = (float)0.9;
+				LUT[3] = (float)0.875;
+				LUT[4] = (float)0.85;
+				LUT[5] = (float)0.825;
+				LUT[6] = (float)0.8;
+				LUT[7] = (float)0.775;
+				LUT[8] = (float)0.7725;
+			}
+			break;
+		}
+	}
+
 	/*
 	 * A function to display Toast Messages.
 	 * 
@@ -1036,20 +1315,21 @@ public class MainActivity extends Activity {
 			public void run() {
 
 				if(inCountdown1Mode) {
-                    warmUpWindow1.dismiss();
-                    countdown1Handler.removeCallbacksAndMessages(null);
-                }
-                
-                inCountdown1Mode = false;
-                countdown1 = COUNT;
-                on = false;
- 
-                tvUpdate(box.tvSensorValue, "--");
-                // Stop taking measurements
-                box.streamer.disable();
-                // Disable the sensor
-                droneApp.myDrone.quickDisable(box.qsSensor);
-                
+					warmUpWindow1.dismiss();
+					countdown1Handler.removeCallbacksAndMessages(null);
+				}
+				
+				tickHandler.removeCallbacksAndMessages(null);
+				
+				inCountdown1Mode = false;
+				countdown1 = WARMUP_COUNT;
+				on = false;
+				tvUpdate(tvSensorValue, "--");
+				// Stop taking measurements
+				box.streamer.disable();
+				// Disable the sensor
+				droneApp.myDrone.quickDisable(box.qsSensor);
+				
 				// Turn off myBlinker
 				box.myBlinker.disable();
 				
@@ -1057,7 +1337,6 @@ public class MainActivity extends Activity {
 				if (droneApp.myDrone.isConnected) {
 					droneApp.myDrone.setLEDs(0, 0, 0);
 				}
-				
 				
 //				// Don't forget the battery voltage button
 //				if (box.bvToggle.isChecked()){
@@ -1070,11 +1349,9 @@ public class MainActivity extends Activity {
 				}
 
 				// Remind people how to connect
-				box.tvConnectInfo.setVisibility(TextView.VISIBLE);
+				tvConnectInfo.setVisibility(TextView.VISIBLE);
 			}
 		});
-
-
 	}
 
 	/*
@@ -1091,9 +1368,10 @@ public class MainActivity extends Activity {
 		switch(item.getItemId()){
 		case R.id.menuConnect:
 			if (!droneApp.myDrone.isConnected) {
+				String prefLastMAC = preferences.getString(LAST_MAC, "");
 				// This option is used to re-connect to the last connected MAC
-				if (!droneApp.myDrone.lastMAC.equals("")) {
-					if (!droneApp.myDrone.btConnect(droneApp.myDrone.lastMAC)) {
+				if (!prefLastMAC.equals("")) {
+					if (!droneApp.myDrone.btConnect(prefLastMAC)) {
 						myInfo.connectFail();
 					}
 				} else {
@@ -1104,7 +1382,6 @@ public class MainActivity extends Activity {
 				quickMessage("Already connected...");
 			}
 			break;
-
 		case R.id.menuDisconnect:
 			// Only disconnect if it's connected
 			if (droneApp.myDrone.isConnected) {
@@ -1129,5 +1406,4 @@ public class MainActivity extends Activity {
 		}
 		return true;
 	}
-
 }
