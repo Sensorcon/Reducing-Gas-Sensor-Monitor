@@ -14,6 +14,8 @@ import com.sensorcon.sensordrone.Drone;
 import com.sensorcon.sensordrone.Drone.DroneEventListener;
 import com.sensorcon.sensordrone.Drone.DroneStatusListener;
 
+import android.annotation.SuppressLint;
+import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -23,8 +25,10 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Window;
 import android.widget.EditText;
 
+@SuppressLint("NewApi")
 public class GraphActivity extends Activity {
 
 
@@ -36,6 +40,10 @@ public class GraphActivity extends Activity {
 	public int currentUpper;
 	public int currentLower;
 	public int[] savedRange;
+	
+	private int api;
+	private final int NEW_API = 0;
+	private final int OLD_API = 1;
 
 	/*
 	 * We user our DroneEentListener to load data into the graph. Check
@@ -312,7 +320,22 @@ public class GraphActivity extends Activity {
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.graph);
+		// Check to see if API supports swipe views and fragments
+		if (android.os.Build.VERSION.SDK_INT < 13) {
+		    api = OLD_API;
+		} else {
+			api = NEW_API;
+		}
+		if(api == NEW_API) {
+			getWindow().requestFeature(Window.FEATURE_ACTION_BAR); // Add this line
+		}
+		setContentView(R.layout.graph);		
+		if(api == NEW_API) {
+		    ActionBar actionBar = getActionBar();
+		    actionBar.show();
+		}
+		
+		
 
 		// Use our Drone
 		droneApp = (DroneApplication)getApplication();
@@ -327,7 +350,7 @@ public class GraphActivity extends Activity {
 		// Graph data
 		droneHistory = new LinkedList<Number>();
 		droneValues= new SimpleXYSeries(myLabel);
-
+		
 		// Graph foramtting
 		dronePlot = (XYPlot)findViewById(R.id.dynamicPlot);
 		LineAndPointFormatter lF = new LineAndPointFormatter(Color.rgb(0, 0, 0), Color.rgb(0, 255, 0), null);
@@ -363,8 +386,8 @@ public class GraphActivity extends Activity {
 				upperBound = 10000;
 				lowerBound = 50;
 		} else if (sensorToWatch == droneApp.myDrone.QS_TYPE_REDUCING_GAS) {
-					upperBound = 500000;
-					lowerBound = 1000;
+					upperBound = 500;
+					lowerBound = 1;
 		} else if (sensorToWatch == droneApp.myDrone.QS_TYPE_ADC) {
 			upperBound = 3;
 			lowerBound = 0;
@@ -410,7 +433,8 @@ public class GraphActivity extends Activity {
 	// This updates our data and redraws the graph
 	public void addData(float data) {
 
-
+		data = data/1000;
+		
 		Number[] numbers = {data};
 		droneValues.setModel(Arrays.asList(numbers), ArrayFormat.Y_VALS_ONLY);
 		// If our data size is larger than our history, remove the oldest.
@@ -429,8 +453,11 @@ public class GraphActivity extends Activity {
 	 * so we load in some points to keep it from looking strange at first.
 	 */
 	public void initializeData(float data) {
+		data = data/1000;
+		
 		for (int i=0; i < HISTORY_SIZE; i++) {
 			Number[] numbers = {data};
+			
 			droneValues.setModel(Arrays.asList(numbers), ArrayFormat.Y_VALS_ONLY);
 			if(droneHistory.size() > HISTORY_SIZE) {
 				droneHistory.removeFirst();
@@ -462,10 +489,6 @@ public class GraphActivity extends Activity {
 		case R.id.menuLower:
 			changeLowerRange();
 			break;
-		case R.id.menuTip:
-			infoPopUp();
-			break;
-
 		}
 		return true;
 	}

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:padding="10dip"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="#D0000000"
+    android:id="@+id/popup_element"
+    >
+
+  <LinearLayout
+        android:layout_width="fill_parent" android:layout_height="wrap_content"
+        android:id="@+id/layoutContainer" android:orientation="vertical">
+        
+    <RelativeLayout
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:layout_weight="0.1">
+    </RelativeLayout>
+    
+    <RelativeLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.8">
+
+             <TextView
+		        android:id="@+id/popupTitle"
+		        android:layout_width="wrap_content"
+		        android:layout_height="wrap_content"
+		        android:textSize="28dp"
+		        android:textColor="#FFFFFF"
+		        android:text="@string/title1" />
+				
+			    <ImageButton
+			        android:id="@+id/xButton"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_alignParentRight="true"
+			        android:adjustViewBounds="true"  
+				     android:maxWidth="50dp"    
+				     android:scaleType="fitCenter"
+			        android:src="@drawable/x" />
+		 
+			     <TextView
+			         android:id="@+id/popupInfo"
+			        android:layout_width="wrap_content"
+			        android:layout_height="wrap_content"
+			        android:layout_below="@+id/popupTitle"
+			        android:layout_marginTop="20dp"
+			        android:textColor="#FFFFFF"
+			        android:textSize="20dp"
+			        android:text="@string/description1"
+			    />
+      
+    </RelativeLayout>
+    
+    <RelativeLayout
+            android:layout_width="fill_parent"
+            android:layout_height="fill_parent"
+            android:layout_weight="0.1">
+    </RelativeLayout>
+    
+</LinearLayout>
+
+</RelativeLayout>

@@ -2,9 +2,5 @@
 	<item android:id="@+id/menuScan" android:title="Scan to Connect"></item>
     <item android:id="@+id/menuConnect" android:title="Re-Connect"></item>
     <item android:id="@+id/menuDisconnect" android:title="Disconnect"></item>
-    <item android:id="@+id/menuHelp" android:title="Help">
-        <menu>
-            <item android:id="@+id/infoConnections" android:title="Connections"/>
-        </menu>
-    </item>
+    <item android:id="@+id/instructions" android:title="Instructions"></item>
 </menu>

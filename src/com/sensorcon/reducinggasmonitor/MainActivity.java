@@ -20,6 +20,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.annotation.SuppressLint;
+import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -27,9 +28,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
+import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Point;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.util.Log;
+import android.view.Display;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -39,6 +44,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.View.OnClickListener;
 import android.view.View.OnTouchListener;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.CompoundButton;
 import android.widget.CompoundButton.OnCheckedChangeListener;
@@ -73,6 +79,14 @@ public class MainActivity extends Activity {
 	static String LAST_MAC = "LAST_MAC";
 	static String DISABLE_INTRO = "DISABLE_INTRO";
 	private SharedPreferences preferences;
+	private int screenSize;
+	private final int SMALL_SCREEN = 0;
+	private final int NORMAL_SCREEN = 1;
+	private final int LARGE_SCREEN = 2;
+	private final int XLARGE_SCREEN = 3;
+	private int api;
+	private final int NEW_API = 0;
+	private final int OLD_API = 1;
 	/*
 	 * Constants
 	 */
@@ -123,7 +137,11 @@ public class MainActivity extends Activity {
     private View layout3;
     private Button buttonBaseline;
     private RelativeLayout tickerLayout;
-    private TableRow infoRow;
+    private ImageView monitor;
+    private LinearLayout infoRow;
+    private ImageButton radioLow;
+    private ImageButton radioMed;
+    private ImageButton radioHigh;
 	/*
 	 * Program control variables
 	 */
@@ -144,11 +162,12 @@ public class MainActivity extends Activity {
 	private int soundId;
 	private boolean loaded;
 	private AudioManager am;
+	private boolean mute;
 	/*
 	 * Modes
 	 */
-	private final int INFO_MODE = 0;
-	private final int TICKER_MODE = 1;
+	private final int TICKER_MODE = 0;
+	private final int INFO_MODE = 1;
 	/*
 	 * Baseline calculation variables
 	 */
@@ -555,12 +574,43 @@ public class MainActivity extends Activity {
 			//It's an orientation change.
 		}
 	}
+	
+	@Override
+	public void onPause() {
+		super.onPause();
+		
+		setLEDsHandler.removeCallbacksAndMessages(null);
+		tickHandler.removeCallbacks(null);
+		
+		mute = true;
+	}
 
+	@Override
+	public void onResume() {
+		super.onResume();
+		
+		mute = false;
+	}
 
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
+		
+		// Check to see if API supports swipe views and fragments
+		if (android.os.Build.VERSION.SDK_INT < 13) {
+		    api = OLD_API;
+		} else {
+			api = NEW_API;
+		}
+				
+		if(api == NEW_API) {
+			getWindow().requestFeature(Window.FEATURE_ACTION_BAR); // Add this line
+		}
 		setContentView(R.layout.main);
+		if(api == NEW_API) {
+		    ActionBar actionBar = getActionBar();
+		    actionBar.show();
+		}
 
 		// Get out Application so we have access to our Drone
 		droneApp = (DroneApplication)getApplication();
@@ -601,7 +651,11 @@ public class MainActivity extends Activity {
 		buttonBaseline = (Button)findViewById(R.id.zero_button);
 		tickerLayout = (RelativeLayout)findViewById(R.id.ticker_layout);
 		ledOnLayout = (LinearLayout)findViewById(R.id.led_group2);
-		infoRow = (TableRow)findViewById(R.id.info_row);
+		infoRow = (LinearLayout)findViewById(R.id.info_row);
+		radioLow = (ImageButton)findViewById(R.id.rb_low);
+		radioMed = (ImageButton)findViewById(R.id.rb_med);
+		radioHigh = (ImageButton)findViewById(R.id.rb_high);
+		monitor = (ImageView)findViewById(R.id.monitor_bg);
 		
 		/*
 		 * Info mode stuff is invisible
@@ -615,20 +669,46 @@ public class MainActivity extends Activity {
 		ledOn7.setVisibility(View.INVISIBLE);
 		ledOn8.setVisibility(View.INVISIBLE);
 		ledOn9.setVisibility(View.INVISIBLE);
-		ledOnLayout.setVisibility(View.INVISIBLE);
-		tickerLayout.setVisibility(View.INVISIBLE);
+//		ledOnLayout.setVisibility(View.INVISIBLE);
+		infoRow.setVisibility(View.INVISIBLE);
 		
 		// Initialize SharedPreferences
 		preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
+		
+		// Get screen size
+		if((getResources().getConfiguration().screenLayout & 
+			    Configuration.SCREENLAYOUT_SIZE_MASK) == 
+			        Configuration.SCREENLAYOUT_SIZE_SMALL) {
+			    screenSize = SMALL_SCREEN;
+		}
+		else if((getResources().getConfiguration().screenLayout & 
+			    Configuration.SCREENLAYOUT_SIZE_MASK) == 
+			        Configuration.SCREENLAYOUT_SIZE_NORMAL) {
+			    screenSize = NORMAL_SCREEN;
+		}
+		else if((getResources().getConfiguration().screenLayout & 
+			    Configuration.SCREENLAYOUT_SIZE_MASK) == 
+			        Configuration.SCREENLAYOUT_SIZE_LARGE) {
+			    screenSize = LARGE_SCREEN;
+		}
+		else if((getResources().getConfiguration().screenLayout & 
+			    Configuration.SCREENLAYOUT_SIZE_MASK) == 
+			        Configuration.SCREENLAYOUT_SIZE_XLARGE) {
+			    screenSize = XLARGE_SCREEN;
+		}
+		else {
+			screenSize = NORMAL_SCREEN;
+		}
 		
 		on = false;
 		firstTime = true;
 		suspendCount = false;
 		modeChange = false;
 		warmedUp = false;
-		mode = INFO_MODE;
+		mode = TICKER_MODE;
 		val = 0;
 		tickFrequency = 1000;
+		mute = false;
 		
 		leftButton.setOnClickListener(new OnClickListener() {
             @Override
@@ -649,14 +729,79 @@ public class MainActivity extends Activity {
 		View layout1 = inflater1.inflate(R.layout.popup,
 				(ViewGroup) findViewById(R.id.popup_element));
 
+//		if(screenSize == SMALL_SCREEN) {
+//			popup = new PopupWindow(
+//					layout1, 
+//					250, 
+//					LayoutParams.WRAP_CONTENT, 
+//					true);
+//		}
+//		else if(screenSize == NORMAL_SCREEN) {
+//			popup = new PopupWindow(
+//					layout1, 
+//					375, 
+//					LayoutParams.WRAP_CONTENT, 
+//					true);
+//		}
+//		else if(screenSize == LARGE_SCREEN) {
+//			popup = new PopupWindow(
+//					layout1, 
+//					550, 
+//					LayoutParams.WRAP_CONTENT, 
+//					true);
+//		}
+//		else if(screenSize == XLARGE_SCREEN) {
+//			popup = new PopupWindow(
+//					layout1, 
+//					650, 
+//					LayoutParams.WRAP_CONTENT, 
+//					true);
+//		}
+		
+		int w;
+		
+		if(api == OLD_API) {
+			Display display = getWindowManager().getDefaultDisplay();
+			w = display.getWidth();
+		}
+		else {
+			Display display = getWindowManager().getDefaultDisplay();
+			Point size = new Point();
+			display.getSize(size);
+			w = size.x;
+		}
+		
 		popup = new PopupWindow(
 				layout1, 
-				550, 
+				w - 50, 
 				LayoutParams.WRAP_CONTENT, 
 				true);
+				
+		popup.setBackgroundDrawable(new BitmapDrawable());
 		
 		tv_popupTitle = (TextView)layout1.findViewById(R.id.popupTitle);
 		tv_popupInfo = (TextView)layout1.findViewById(R.id.popupInfo);
+		
+		radioLow.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				setLowSensitivity();
+			}	
+		});
+		
+		radioMed.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				setMedSensitivity();
+			}	
+		});
+		
+		radioHigh.setOnClickListener(new OnClickListener() {
+			@Override
+			public void onClick(View v) {
+				setHighSensitivity();
+			}	
+		});
 		
 		buttonBaseline.setOnClickListener(new OnClickListener() {
 			@Override
@@ -725,6 +870,7 @@ public class MainActivity extends Activity {
 		});
 		soundId = tickSound.load(this, R.raw.tick, 1);
 		am = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+		setVolumeControlStream(AudioManager.STREAM_MUSIC);
 		
 		// Check to see if user still wants intro screen to show
 		pStream = new PreferencesStream();
@@ -743,8 +889,8 @@ public class MainActivity extends Activity {
 	 * Starts the baseline count
 	 */
 	public void resetBaseline() {
-		int w = tickerLayout.getWidth();
-		int h = tickerLayout.getHeight();
+		int w = monitor.getWidth();
+		int h = monitor.getHeight();
 	
 		baselineWindow = new PopupWindow(layout3, w, h, true);
 		baselineWindow.setOutsideTouchable(true);
@@ -784,22 +930,7 @@ public class MainActivity extends Activity {
 				showWarmupWindow(h);
 				countdown1Handler.post(countdown1Runnable);
 			} else {
-				// Stop taking measurements
-				box.streamer.disable();
-				// Disable the sensor
-				droneApp.myDrone.quickDisable(box.qsSensor);
-				
-				on = false;
-				warmedUp = false;
-				tvUpdate(tvSensorValue, "--");
-				
-				inCountdown1Mode = false;
-				countdown1 = WARMUP_COUNT;
-				warmUpWindow1.dismiss();
-				countdown1Handler.removeCallbacksAndMessages(null);
-				countdown2Handler.removeCallbacksAndMessages(null);
-				tickHandler.removeCallbacksAndMessages(null);
-				setLEDsHandler.removeCallbacksAndMessages(null);
+				resetAllOperations();
 			}
 		}
 	}
@@ -832,12 +963,12 @@ public class MainActivity extends Activity {
 		AlertDialog.Builder alert = new AlertDialog.Builder(this);
 		alert.setCancelable(false);
 		alert.setTitle("Introduction").setMessage(R.string.intro);
-		alert.setPositiveButton("Don't Show Again", new DialogInterface.OnClickListener() {
+		alert.setNegativeButton("Don't Show Again", new DialogInterface.OnClickListener() {
 		        public void onClick(DialogInterface dialog, int which) { 
 		            pStream.disableIntroDialog();
 		        }
 		     })
-		    .setNegativeButton("Okay", new DialogInterface.OnClickListener() {
+		    .setPositiveButton("Okay", new DialogInterface.OnClickListener() {
 		        public void onClick(DialogInterface dialog, int which) { 
 		            // do nothing
 		        }
@@ -870,15 +1001,18 @@ public class MainActivity extends Activity {
 	
 	public void showBaselineWindow(int h) {
 		inBaselineMode = true;
-		baselineWindow.showAsDropDown(tickerLayout, 0, -h);
+		baselineWindow.showAsDropDown(monitor, 0, -h);
 	}
 	
 	/**
 	 * Makes informative popup appear
 	 */
 	public void showRedPopup() {
-		Intent myIntent = new Intent(getApplicationContext(), InfoActivity.class);
-		startActivity(myIntent);
+		tv_popupTitle.setText(R.string.title1);
+		tv_popupInfo.setText(R.string.description1);
+		
+		// The code below assumes that the root container has an id called 'main'
+		 popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
 	}
 	
 	/**
@@ -896,11 +1030,66 @@ public class MainActivity extends Activity {
 	 * Makes informative popup appear
 	 */
 	public void showWarningPopup() {
-		tv_popupTitle.setText("Developer Warning");
+		tv_popupTitle.setText("Power Warning");
 		tv_popupInfo.setText(R.string.warning);
 		
 		// The code below assumes that the root container has an id called 'main'
 		 popup.showAtLocation(findViewById(R.id.anchor), Gravity.CENTER, 0, 0);
+	}
+	
+	/**
+	 * This function resets any current operations on a disconnect or turning off the sensor
+	 */
+	public void resetAllOperations() {
+		/*
+		 * Check to see if we are in any countdown modes
+		 */
+		if(inCountdown1Mode) {
+			warmUpWindow1.dismiss();
+		}		
+		if(inBaselineMode) {
+			baselineWindow.dismiss();
+		}
+		
+		/**
+		 * Turn off any red leds
+		 */
+		ledOn1.setVisibility(View.INVISIBLE);
+		ledOn2.setVisibility(View.INVISIBLE);
+		ledOn3.setVisibility(View.INVISIBLE);
+		ledOn4.setVisibility(View.INVISIBLE);
+		ledOn5.setVisibility(View.INVISIBLE);
+		ledOn6.setVisibility(View.INVISIBLE);
+		ledOn7.setVisibility(View.INVISIBLE);
+		ledOn8.setVisibility(View.INVISIBLE);
+		ledOn9.setVisibility(View.INVISIBLE);
+		
+		/*
+		 * Reset any program flow variables
+		 */
+		inCountdown1Mode = false;
+		inBaselineMode = false;
+		on = false;
+		modeChange = false;
+		warmedUp = false;
+		
+		/*
+		 * Reset counts
+		 */
+		countdown1 = WARMUP_COUNT;
+		countdown2 = BASELINE_COUNT;
+		tvUpdate(tvSensorValue, "--");
+		
+		countdown1Handler.removeCallbacksAndMessages(null);
+		countdown2Handler.removeCallbacksAndMessages(null);
+		modeHandler.removeCallbacksAndMessages(null);
+		tickHandler.removeCallbacksAndMessages(null);
+		setLEDsHandler.removeCallbacksAndMessages(null);
+		
+		// Stop taking measurements
+		box.streamer.disable();
+		// Disable the sensor
+		droneApp.myDrone.quickDisable(box.qsSensor);
 	}
 	
 	/*
@@ -925,6 +1114,7 @@ public class MainActivity extends Activity {
 					
 					if(mode == TICKER_MODE) {
 						tickHandler.post(tickRunnable);
+						setLEDsHandler.post(setLEDsRunnable);
 					}
 					
 					blValues[0] = val;
@@ -1016,13 +1206,18 @@ public class MainActivity extends Activity {
 					
 					infoRow.setVisibility(View.VISIBLE);
 					
+					if(inBaselineMode) {
+						baselineWindow.dismiss();
+						countdown2 = BASELINE_COUNT;
+						setLEDsHandler.post(setLEDsRunnable);
+					}
+					
 					tickerLayout.setVisibility(View.INVISIBLE);
 					ledOnLayout.setVisibility(View.INVISIBLE);
 				}
 				else {
-					setLEDsHandler.post(setLEDsRunnable);
-					
 					if(warmedUp) {
+						setLEDsHandler.post(setLEDsRunnable);
 						tickHandler.post(tickRunnable);
 					}
 					
@@ -1048,125 +1243,140 @@ public class MainActivity extends Activity {
 			Log.d("chris","Ratio: " + Float.toString(ratio));
 			
 			if(mode == TICKER_MODE) {
-				if(ratio > LUT[1]) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.INVISIBLE);
-					ledOn3.setVisibility(View.INVISIBLE);
-					ledOn4.setVisibility(View.INVISIBLE);
-					ledOn5.setVisibility(View.INVISIBLE);
-					ledOn6.setVisibility(View.INVISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = TICK_FREQ_BASE;
-				}
-				else if((ratio < LUT[1]) && (ratio > LUT[2])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.INVISIBLE);
-					ledOn4.setVisibility(View.INVISIBLE);
-					ledOn5.setVisibility(View.INVISIBLE);
-					ledOn6.setVisibility(View.INVISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 800;
-				}
-				else if((ratio < LUT[2]) && (ratio > LUT[3])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.INVISIBLE);
-					ledOn5.setVisibility(View.INVISIBLE);
-					ledOn6.setVisibility(View.INVISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 600;
-				}
-				else if((ratio < LUT[3]) && (ratio > LUT[4])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.INVISIBLE);
-					ledOn6.setVisibility(View.INVISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 400;
-				}
-				else if((ratio < LUT[4]) && (ratio > LUT[5])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.VISIBLE);
-					ledOn6.setVisibility(View.INVISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 200;
-				}
-				else if((ratio < LUT[5]) && (ratio > LUT[6])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.VISIBLE);
-					ledOn6.setVisibility(View.VISIBLE);
-					ledOn7.setVisibility(View.INVISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 100;
-				}
-				else if((ratio < LUT[6]) && (ratio > LUT[7])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.VISIBLE);
-					ledOn6.setVisibility(View.VISIBLE);
-					ledOn7.setVisibility(View.VISIBLE);
-					ledOn8.setVisibility(View.INVISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 75;
-				}
-				else if((ratio < LUT[7]) && (ratio > LUT[8])) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.VISIBLE);
-					ledOn6.setVisibility(View.VISIBLE);
-					ledOn7.setVisibility(View.VISIBLE);
-					ledOn8.setVisibility(View.VISIBLE);
-					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 60;
-				}
-				else if(ratio < LUT[8]) {
-					ledOn1.setVisibility(View.VISIBLE);
-					ledOn2.setVisibility(View.VISIBLE);
-					ledOn3.setVisibility(View.VISIBLE);
-					ledOn4.setVisibility(View.VISIBLE);
-					ledOn5.setVisibility(View.VISIBLE);
-					ledOn6.setVisibility(View.VISIBLE);
-					ledOn7.setVisibility(View.VISIBLE);
-					ledOn8.setVisibility(View.VISIBLE);
-					ledOn9.setVisibility(View.VISIBLE);
-					
-					tickFrequency = 50;
+				if(warmedUp) {
+					if(ratio > LUT[1]) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.INVISIBLE);
+						ledOn3.setVisibility(View.INVISIBLE);
+						ledOn4.setVisibility(View.INVISIBLE);
+						ledOn5.setVisibility(View.INVISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = TICK_FREQ_BASE;
+					}
+					else if((ratio < LUT[1]) && (ratio > LUT[2])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.INVISIBLE);
+						ledOn4.setVisibility(View.INVISIBLE);
+						ledOn5.setVisibility(View.INVISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 800;
+					}
+					else if((ratio < LUT[2]) && (ratio > LUT[3])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.INVISIBLE);
+						ledOn5.setVisibility(View.INVISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 600;
+					}
+					else if((ratio < LUT[3]) && (ratio > LUT[4])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.INVISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 400;
+					}
+					else if((ratio < LUT[4]) && (ratio > LUT[5])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.VISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 200;
+					}
+					else if((ratio < LUT[5]) && (ratio > LUT[6])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.VISIBLE);
+						ledOn6.setVisibility(View.VISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 100;
+					}
+					else if((ratio < LUT[6]) && (ratio > LUT[7])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.VISIBLE);
+						ledOn6.setVisibility(View.VISIBLE);
+						ledOn7.setVisibility(View.VISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 75;
+					}
+					else if((ratio < LUT[7]) && (ratio > LUT[8])) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.VISIBLE);
+						ledOn6.setVisibility(View.VISIBLE);
+						ledOn7.setVisibility(View.VISIBLE);
+						ledOn8.setVisibility(View.VISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 60;
+					}
+					else if(ratio < LUT[8]) {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.VISIBLE);
+						ledOn3.setVisibility(View.VISIBLE);
+						ledOn4.setVisibility(View.VISIBLE);
+						ledOn5.setVisibility(View.VISIBLE);
+						ledOn6.setVisibility(View.VISIBLE);
+						ledOn7.setVisibility(View.VISIBLE);
+						ledOn8.setVisibility(View.VISIBLE);
+						ledOn9.setVisibility(View.VISIBLE);
+						
+						tickFrequency = 50;
+					}
+					else {
+						ledOn1.setVisibility(View.VISIBLE);
+						ledOn2.setVisibility(View.INVISIBLE);
+						ledOn3.setVisibility(View.INVISIBLE);
+						ledOn4.setVisibility(View.INVISIBLE);
+						ledOn5.setVisibility(View.INVISIBLE);
+						ledOn6.setVisibility(View.INVISIBLE);
+						ledOn7.setVisibility(View.INVISIBLE);
+						ledOn8.setVisibility(View.INVISIBLE);
+						ledOn9.setVisibility(View.INVISIBLE);
+						
+						tickFrequency = 1000;
+					}
 				}
 				else {
-					ledOn1.setVisibility(View.VISIBLE);
+					ledOn1.setVisibility(View.INVISIBLE);
 					ledOn2.setVisibility(View.INVISIBLE);
 					ledOn3.setVisibility(View.INVISIBLE);
 					ledOn4.setVisibility(View.INVISIBLE);
@@ -1175,13 +1385,20 @@ public class MainActivity extends Activity {
 					ledOn7.setVisibility(View.INVISIBLE);
 					ledOn8.setVisibility(View.INVISIBLE);
 					ledOn9.setVisibility(View.INVISIBLE);
-					
-					tickFrequency = 1000;
 				}
 				
 				setLEDsHandler.postDelayed(this, 1000);
 			}
 			else {
+				ledOn1.setVisibility(View.INVISIBLE);
+				ledOn2.setVisibility(View.INVISIBLE);
+				ledOn3.setVisibility(View.INVISIBLE);
+				ledOn4.setVisibility(View.INVISIBLE);
+				ledOn5.setVisibility(View.INVISIBLE);
+				ledOn6.setVisibility(View.INVISIBLE);
+				ledOn7.setVisibility(View.INVISIBLE);
+				ledOn8.setVisibility(View.INVISIBLE);
+				ledOn9.setVisibility(View.INVISIBLE);
 				setLEDsHandler.removeCallbacksAndMessages(null);
 			}
 		}
@@ -1193,7 +1410,9 @@ public class MainActivity extends Activity {
 		public void run() {
 			if(mode == TICKER_MODE) {
 				if(warmedUp) {
-					tick();
+					if(!mute) {
+						tick();
+					}
 				}
 				tickHandler.postDelayed(this, tickFrequency);
 			}
@@ -1217,60 +1436,72 @@ public class MainActivity extends Activity {
 		switch(view.getId()) {
 		case R.id.rb_info_mode:
 			if(checked) {
-				mode = INFO_MODE;
+				mode = TICKER_MODE;
 				modeChange = true;
 				modeHandler.post(changeModeRunnable);
 			}
 			break;
 		case R.id.rb_ticker_mode:
 			if(checked) {
-				mode = TICKER_MODE;
+				mode = INFO_MODE;
 				modeChange = true;
 				modeHandler.post(changeModeRunnable);
-			}
-			break;
-		case R.id.rb_low:
-			if(checked) {
-				LUT[0] = 1;
-				LUT[1] = (float)0.7;
-				LUT[2] = (float)0.6;
-				LUT[3] = (float)0.5;
-				LUT[4] = (float)0.4;
-				LUT[5] = (float)0.3;
-				LUT[6] = (float)0.2;
-				LUT[7] = (float)0.1;
-				LUT[8] = (float)0.09;
-			}
-			break;
-		case R.id.rb_medium:
-			if(checked) {
-				LUT[0] = 1;
-				LUT[1] = (float)0.85;
-				LUT[2] = (float)0.8;
-				LUT[3] = (float)0.75;
-				LUT[4] = (float)0.7;
-				LUT[5] = (float)0.65;
-				LUT[6] = (float)0.6;
-				LUT[7] = (float)0.55;
-				LUT[8] = (float)0.545;
-			}
-			break;
-		case R.id.rb_high:
-			if(checked) {
-				LUT[0] = 1;
-				LUT[1] = (float)0.925;
-				LUT[2] = (float)0.9;
-				LUT[3] = (float)0.875;
-				LUT[4] = (float)0.85;
-				LUT[5] = (float)0.825;
-				LUT[6] = (float)0.8;
-				LUT[7] = (float)0.775;
-				LUT[8] = (float)0.7725;
 			}
 			break;
 		}
 	}
 
+	/**
+	 * CUSTOM RADIO BUTTON CONTROL
+	 */
+	private void setLowSensitivity() {
+		radioLow.setImageResource(R.drawable.radio_on);
+		radioMed.setImageResource(R.drawable.radio_off);
+		radioHigh.setImageResource(R.drawable.radio_off);
+		
+		LUT[0] = 1;
+		LUT[1] = (float)0.7;
+		LUT[2] = (float)0.6;
+		LUT[3] = (float)0.5;
+		LUT[4] = (float)0.4;
+		LUT[5] = (float)0.3;
+		LUT[6] = (float)0.2;
+		LUT[7] = (float)0.1;
+		LUT[8] = (float)0.09;
+	}
+	
+	private void setMedSensitivity() {
+		radioLow.setImageResource(R.drawable.radio_off);
+		radioMed.setImageResource(R.drawable.radio_on);
+		radioHigh.setImageResource(R.drawable.radio_off);
+		
+		LUT[0] = 1;
+		LUT[1] = (float)0.85;
+		LUT[2] = (float)0.8;
+		LUT[3] = (float)0.75;
+		LUT[4] = (float)0.7;
+		LUT[5] = (float)0.65;
+		LUT[6] = (float)0.6;
+		LUT[7] = (float)0.55;
+		LUT[8] = (float)0.545;
+	}
+	
+	private void setHighSensitivity() {
+		radioLow.setImageResource(R.drawable.radio_off);
+		radioMed.setImageResource(R.drawable.radio_off);
+		radioHigh.setImageResource(R.drawable.radio_on);
+		
+		LUT[0] = 1;
+		LUT[1] = (float)0.925;
+		LUT[2] = (float)0.9;
+		LUT[3] = (float)0.875;
+		LUT[4] = (float)0.85;
+		LUT[5] = (float)0.825;
+		LUT[6] = (float)0.8;
+		LUT[7] = (float)0.775;
+		LUT[8] = (float)0.7725;
+	}
+	
 	/*
 	 * A function to display Toast Messages.
 	 * 
@@ -1314,21 +1545,7 @@ public class MainActivity extends Activity {
 			@Override
 			public void run() {
 
-				if(inCountdown1Mode) {
-					warmUpWindow1.dismiss();
-					countdown1Handler.removeCallbacksAndMessages(null);
-				}
-				
-				tickHandler.removeCallbacksAndMessages(null);
-				
-				inCountdown1Mode = false;
-				countdown1 = WARMUP_COUNT;
-				on = false;
-				tvUpdate(tvSensorValue, "--");
-				// Stop taking measurements
-				box.streamer.disable();
-				// Disable the sensor
-				droneApp.myDrone.quickDisable(box.qsSensor);
+				resetAllOperations();
 				
 				// Turn off myBlinker
 				box.myBlinker.disable();
@@ -1400,8 +1617,7 @@ public class MainActivity extends Activity {
 			break;
 			
 			//Help Menu items
-		case R.id.infoConnections:
-			myInfo.connectionInfo();
+		case R.id.instructions:
 			break;
 		}
 		return true;
