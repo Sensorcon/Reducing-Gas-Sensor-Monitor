@@ -252,7 +252,7 @@
 	           android:layout_height="wrap_content"
 	           android:layout_centerInParent="true"
 	           android:adjustViewBounds="true"
-	           android:maxWidth="350dp"
+	           android:maxWidth="700dp"
 	           android:scaleType="fitCenter"
 	           android:src="@drawable/monitor" />
         
@@ -271,7 +271,7 @@
 	           android:layout_width="wrap_content"
 	           android:layout_height="wrap_content"
 	           android:layout_alignTop="@+id/monitor_bg"
-	           android:layout_marginTop="20dp"
+	           android:layout_marginTop="15dp"
 	           android:layout_marginLeft="15dp"
 	           android:textSize="14dp"
 	           android:textColor="#FFFFFF"
@@ -284,14 +284,29 @@
 	            android:layout_below="@+id/label_sensitivty"
 	            android:orientation="vertical" >
             
-	            <ImageButton
+	           <ImageButton
 	                android:id="@+id/rb_low"
 	                android:layout_width="wrap_content"
 	                android:layout_height="wrap_content"
 	                android:background="@null"    
-	                android:layout_marginTop="10dp"     
-	                android:layout_marginLeft="15dp"     
-	                android:src="@drawable/radio_on" />
+	                android:layout_marginTop="5dp"     
+	                android:layout_marginLeft="15dp"   
+	                android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"  
+	                android:src="@drawable/low_button" />
+	            
+	            <ImageButton
+	                android:id="@+id/rb_low_on"
+	                android:layout_width="wrap_content"
+	                android:layout_height="wrap_content"
+	                android:background="@null"    
+	                android:layout_marginTop="5dp"     
+	                android:layout_marginLeft="15dp"   
+	                android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"  
+	                android:src="@drawable/low_button_on" />
 	
 	            <ImageButton
 	                android:id="@+id/rb_med"
@@ -299,9 +314,25 @@
 	                android:layout_height="wrap_content"
 	                android:background="@null" 
 	                android:layout_below="@+id/rb_low" 
-	                android:layout_marginTop="15dp"  
-	                android:layout_marginLeft="15dp"    
-	                android:src="@drawable/radio_off" />
+	                android:layout_marginTop="5dp"  
+	                android:layout_marginLeft="15dp"
+	                 android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"      
+	                android:src="@drawable/med_button" />
+	            
+	            <ImageButton
+	                android:id="@+id/rb_med_on"
+	                android:layout_width="wrap_content"
+	                android:layout_height="wrap_content"
+	                android:background="@null" 
+	                android:layout_below="@+id/rb_low" 
+	                android:layout_marginTop="5dp"  
+	                android:layout_marginLeft="15dp"
+	                 android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"      
+	                android:src="@drawable/med_button_on" />
 	
 	            <ImageButton
 	                android:id="@+id/rb_high"
@@ -309,45 +340,26 @@
 	                android:layout_height="wrap_content"
 	                android:background="@null"  
 	                android:layout_below="@+id/rb_med" 
-	                android:layout_marginTop="15dp"   
-	                android:layout_marginLeft="15dp"       
-	                android:src="@drawable/radio_off" />
+	                android:layout_marginTop="5dp"   
+	                android:layout_marginLeft="15dp"
+	                 android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"         
+	                android:src="@drawable/high_button" />
 	            
-            	 <TextView
-			           android:id="@+id/label_low"
-			           android:layout_width="wrap_content"
-			           android:layout_height="wrap_content"
-			           android:layout_alignTop="@+id/rb_low"
-			           android:layout_toRightOf="@+id/rb_low"
-			           android:layout_marginLeft="5dp"
-			           android:layout_marginTop="0dp"
-			           android:textSize="15dp"
-			           android:textColor="#FFFFFF"
-			           android:text="LOW" />
-            	 
-            	 <TextView
-			           android:id="@+id/label_med"
-			           android:layout_width="wrap_content"
-			           android:layout_height="wrap_content"
-			           android:layout_alignTop="@+id/rb_med"
-			           android:layout_toRightOf="@+id/rb_med"
-			           android:layout_marginLeft="5dp"
-			           android:layout_marginTop="0dp"
-			           android:textSize="15dp"
-			           android:textColor="#FFFFFF"
-			           android:text="MED" />
-            	 
-            	 <TextView
-			           android:id="@+id/label_high"
-			           android:layout_width="wrap_content"
-			           android:layout_height="wrap_content"
-			           android:layout_alignTop="@+id/rb_high"
-			           android:layout_toRightOf="@+id/rb_high"
-			           android:layout_marginLeft="5dp"
-			           android:layout_marginTop="0dp"
-			           android:textSize="15dp"
-			           android:textColor="#FFFFFF"
-			           android:text="HIGH" />
+	            <ImageButton
+	                android:id="@+id/rb_high_on"
+	                android:layout_width="wrap_content"
+	                android:layout_height="wrap_content"
+	                android:background="@null"  
+	                android:layout_below="@+id/rb_med" 
+	                android:layout_marginTop="5dp"   
+	                android:layout_marginLeft="15dp"
+	                 android:adjustViewBounds="true"
+                    android:maxWidth="60dp"
+                    android:scaleType="fitCenter"         
+	                android:src="@drawable/high_button_on" />
+	            
         	</RelativeLayout>
 		        	
 	        <LinearLayout

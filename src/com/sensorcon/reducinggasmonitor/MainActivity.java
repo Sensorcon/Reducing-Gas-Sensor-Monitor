@@ -139,9 +139,12 @@ public class MainActivity extends Activity {
     private RelativeLayout tickerLayout;
     private ImageView monitor;
     private LinearLayout infoRow;
-    private ImageButton radioLow;
-    private ImageButton radioMed;
-    private ImageButton radioHigh;
+    private ImageButton buttonLowOff;
+    private ImageButton buttonMedOff;
+    private ImageButton buttonHighOff;
+    private ImageButton buttonLowOn;
+    private ImageButton buttonMedOn;
+    private ImageButton buttonHighOn;
 	/*
 	 * Program control variables
 	 */
@@ -652,9 +655,12 @@ public class MainActivity extends Activity {
 		tickerLayout = (RelativeLayout)findViewById(R.id.ticker_layout);
 		ledOnLayout = (LinearLayout)findViewById(R.id.led_group2);
 		infoRow = (LinearLayout)findViewById(R.id.info_row);
-		radioLow = (ImageButton)findViewById(R.id.rb_low);
-		radioMed = (ImageButton)findViewById(R.id.rb_med);
-		radioHigh = (ImageButton)findViewById(R.id.rb_high);
+		buttonLowOff = (ImageButton)findViewById(R.id.rb_low);
+		buttonMedOff = (ImageButton)findViewById(R.id.rb_med);
+		buttonHighOff = (ImageButton)findViewById(R.id.rb_high);
+		buttonLowOn = (ImageButton)findViewById(R.id.rb_low_on);
+		buttonMedOn = (ImageButton)findViewById(R.id.rb_med_on);
+		buttonHighOn = (ImageButton)findViewById(R.id.rb_high_on);
 		monitor = (ImageView)findViewById(R.id.monitor_bg);
 		
 		/*
@@ -671,6 +677,8 @@ public class MainActivity extends Activity {
 		ledOn9.setVisibility(View.INVISIBLE);
 //		ledOnLayout.setVisibility(View.INVISIBLE);
 		infoRow.setVisibility(View.INVISIBLE);
+		buttonMedOn.setVisibility(View.INVISIBLE);
+		buttonHighOn.setVisibility(View.INVISIBLE);
 		
 		// Initialize SharedPreferences
 		preferences = PreferenceManager.getDefaultSharedPreferences(getApplicationContext());
@@ -782,21 +790,21 @@ public class MainActivity extends Activity {
 		tv_popupTitle = (TextView)layout1.findViewById(R.id.popupTitle);
 		tv_popupInfo = (TextView)layout1.findViewById(R.id.popupInfo);
 		
-		radioLow.setOnClickListener(new OnClickListener() {
+		buttonLowOff.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
 				setLowSensitivity();
 			}	
 		});
 		
-		radioMed.setOnClickListener(new OnClickListener() {
+		buttonMedOff.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
 				setMedSensitivity();
 			}	
 		});
 		
-		radioHigh.setOnClickListener(new OnClickListener() {
+		buttonHighOff.setOnClickListener(new OnClickListener() {
 			@Override
 			public void onClick(View v) {
 				setHighSensitivity();
@@ -1455,9 +1463,9 @@ public class MainActivity extends Activity {
 	 * CUSTOM RADIO BUTTON CONTROL
 	 */
 	private void setLowSensitivity() {
-		radioLow.setImageResource(R.drawable.radio_on);
-		radioMed.setImageResource(R.drawable.radio_off);
-		radioHigh.setImageResource(R.drawable.radio_off);
+		buttonLowOn.setVisibility(View.VISIBLE);
+		buttonMedOn.setVisibility(View.INVISIBLE);
+		buttonHighOn.setVisibility(View.INVISIBLE);
 		
 		LUT[0] = 1;
 		LUT[1] = (float)0.7;
@@ -1471,9 +1479,9 @@ public class MainActivity extends Activity {
 	}
 	
 	private void setMedSensitivity() {
-		radioLow.setImageResource(R.drawable.radio_off);
-		radioMed.setImageResource(R.drawable.radio_on);
-		radioHigh.setImageResource(R.drawable.radio_off);
+		buttonLowOn.setVisibility(View.INVISIBLE);
+		buttonMedOn.setVisibility(View.VISIBLE);
+		buttonHighOn.setVisibility(View.INVISIBLE);
 		
 		LUT[0] = 1;
 		LUT[1] = (float)0.85;
@@ -1487,9 +1495,9 @@ public class MainActivity extends Activity {
 	}
 	
 	private void setHighSensitivity() {
-		radioLow.setImageResource(R.drawable.radio_off);
-		radioMed.setImageResource(R.drawable.radio_off);
-		radioHigh.setImageResource(R.drawable.radio_on);
+		buttonLowOn.setVisibility(View.INVISIBLE);
+		buttonMedOn.setVisibility(View.INVISIBLE);
+		buttonHighOn.setVisibility(View.VISIBLE);
 		
 		LUT[0] = 1;
 		LUT[1] = (float)0.925;

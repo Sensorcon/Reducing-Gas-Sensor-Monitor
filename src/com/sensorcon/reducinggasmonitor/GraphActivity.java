@@ -335,12 +335,8 @@ public class GraphActivity extends Activity {
 		    actionBar.show();
 		}
 		
-		
-
 		// Use our Drone
 		droneApp = (DroneApplication)getApplication();
-
-
 
 		// Get info from the Intent that started us
 		Intent myIntent = getIntent();
