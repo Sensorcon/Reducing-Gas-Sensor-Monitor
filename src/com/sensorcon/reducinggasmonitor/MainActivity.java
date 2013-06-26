@@ -90,8 +90,8 @@ public class MainActivity extends Activity {
 	/*
 	 * Constants
 	 */
-	private final int WARMUP_COUNT = 6;
-	private final int BASELINE_COUNT = 3;
+	private final int WARMUP_COUNT = 31;
+	private final int BASELINE_COUNT = 6;
 	private final int TICK_FREQ_BASE = 1000;
 	/*
 	 * We put our Drone object in a class that extends Application so it
@@ -1626,6 +1626,14 @@ public class MainActivity extends Activity {
 			
 			//Help Menu items
 		case R.id.instructions:
+			if(api == NEW_API) {
+				Intent myIntent = new Intent(getApplicationContext(), InstructionsActivity.class);
+				startActivity(myIntent);
+			}
+			else {
+				Intent myIntent = new Intent(getApplicationContext(), InstructionsActivityOld.class);
+				startActivity(myIntent);
+			}
 			break;
 		}
 		return true;

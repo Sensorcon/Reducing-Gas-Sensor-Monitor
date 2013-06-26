@@ -14,4 +14,16 @@
     <string name="description3">This app returns raw resistance data from the Sensordrone’s reducing gas sensor.  This sensor uses large amounts of power and can take significant time to stabilize.  This app is mainly meant as an introduction to these sensors for developers and users.  The best way to use this app is to turn on the sensor and establish a baseline in Gieger Mode to monitor gas levels with the LEDs. You can also graph the data to see changes in gas levels. Once the graph is fairly stable, you can look for leaks/gas sources, which can cause a large resistance change.</string>
     
     <string name="warning">Ensure your Sensordrone is fully charged before using this app.  The reducing gas sensor uses a significant amount of power, and is best used as a relative sensor (e.g. a leak detector), that is, to detect changes in signal.  Developers should take this into account if they use this sensor in an app. This sensor will cause the Sensordrone to self heat while on.</string>
+    
+    <string name="label1">Menu</string>
+    <string name="label2">Sensor Operation</string>
+    <string name="label3">Graphing</string>
+    <string name="label4">Geiger Mode</string>
+    <string name="label5">Info Mode</string>
+    
+    <string name="tab1_string">To connect, select the Scan to Connect menu option and choose your Sensordrone from the list.\n\nSelect the Re-Connect menu option to connect to the device you last used. This will also work after the program is closed.\n\nSelect the Disconnect option to disconnect from your Sensordrone.</string>
+    <string name="tab2_string">The reducing gas sensor can be powered using the left enable button. Once pressed, there will be a 30 second countdown while the sensor stabilizes. When the countdown is complete, the raw data from the sensor is streamed to the main display at the top of the application. The data is quantified in resistance, which will decrease in the presence of reducing gases. If the enable button is pressed again, the sensor will be powered off.</string>
+    <string name="tab3_string">Press the right button to graph the data streaming from the reducing gas sensor in real time. This mode provides a good way to monitor for gas leaks because you can easily see sharp changes in gas levels.</string>
+    <string name="tab4_string">The default mode of the application emulates a “geiger counter” style detector. When gas concentrations rise above the baseline calculated in the sensor warm-up, LEDs on the display at the bottom will start to light up. The app will also tick at higher frequencies when gas concentrations rise. This is another way to detect gas leaks. There are three sensitivity levels that affect how quickly the LEDs light up. High sensitivity has the lowest threshold for gas level changes. You can reset the baseline if gas levels appear higher than expected.</string>
+    <string name="tab5_string">You can switch between Geiger Mode and Info Mode using the associated radio buttons. Info Mode provides information on reducing gases and basics on how the sensor works. Simply press the buttons to activate the pop-ups.</string>
 </resources>

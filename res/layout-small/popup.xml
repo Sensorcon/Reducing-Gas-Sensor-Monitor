@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:padding="10dip"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="#D0000000"
+    android:id="@+id/popup_element"
+    >
+
+  
+   <TextView
+        android:id="@+id/popupTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:textSize="18dp"
+        android:textColor="#FFFFFF"
+        android:text="@string/title1" />
+		
+	    <ImageButton
+	        android:id="@+id/xButton"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_alignParentRight="true"
+	        android:background="@null"
+	        android:adjustViewBounds="true"  
+		     android:maxWidth="40dp"    
+		     android:scaleType="fitCenter"
+	        android:src="@drawable/x" />
+ 
+	     <TextView
+	         android:id="@+id/popupInfo"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_below="@+id/popupTitle"
+	        android:layout_marginTop="20dp"
+	        android:textColor="#FFFFFF"
+	        android:textSize="14dp"
+	        android:text="@string/description1"
+	    />
+      
+</RelativeLayout>
