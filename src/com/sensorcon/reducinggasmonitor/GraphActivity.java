@@ -1,19 +1,6 @@
 package com.sensorcon.reducinggasmonitor;
 
 
-import java.util.Arrays;
-import java.util.EventObject;
-import java.util.LinkedList;
-
-import com.androidplot.xy.BoundaryMode;
-import com.androidplot.xy.LineAndPointFormatter;
-import com.androidplot.xy.SimpleXYSeries;
-import com.androidplot.xy.SimpleXYSeries.ArrayFormat;
-import com.androidplot.xy.XYPlot;
-import com.sensorcon.sensordrone.Drone;
-import com.sensorcon.sensordrone.Drone.DroneEventListener;
-import com.sensorcon.sensordrone.Drone.DroneStatusListener;
-
 import android.annotation.SuppressLint;
 import android.app.ActionBar;
 import android.app.Activity;
@@ -27,6 +14,16 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.Window;
 import android.widget.EditText;
+import com.androidplot.xy.BoundaryMode;
+import com.androidplot.xy.LineAndPointFormatter;
+import com.androidplot.xy.SimpleXYSeries;
+import com.androidplot.xy.SimpleXYSeries.ArrayFormat;
+import com.androidplot.xy.XYPlot;
+import com.sensorcon.sensordrone.DroneEventHandler;
+import com.sensorcon.sensordrone.DroneEventObject;
+
+import java.util.Arrays;
+import java.util.LinkedList;
 
 @SuppressLint("NewApi")
 public class GraphActivity extends Activity {
@@ -45,251 +42,21 @@ public class GraphActivity extends Activity {
 	private final int NEW_API = 0;
 	private final int OLD_API = 1;
 
-	/*
-	 * We user our DroneEentListener to load data into the graph. Check
-	 * temperatureMeasured() for the general idea of how it works.
-	 */
-	private DroneEventListener geListener = new DroneEventListener() {
 
-		@Override
-		public void usbUartRead(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void unknown(EventObject arg0) {
+    private DroneEventHandler droneHandler = new DroneEventHandler() {
+        @Override
+        public void parseEvent(DroneEventObject droneEventObject) {
+             if (droneEventObject.matches(DroneEventObject.droneEventType.REDUCING_GAS_MEASURED)) {
+                 if (sensorToWatch == droneApp.myDrone.QS_TYPE_REDUCING_GAS) {
+                     valueToWatch = droneApp.myDrone.reducingGas_Ohm;
+                     addData(valueToWatch);
+                 }
+             }
+        }
+    };
 
 
-		}
 
-		@Override
-		public void uartRead(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void temperatureMeasured(EventObject arg0) {
-			// If this is the sensor we are graphing
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_TEMPERATURE) {
-				// then set the variable
-				valueToWatch = droneApp.myDrone.temperature_Farenheit;
-				// and add the data to the graph
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void rgbcMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_RGBC) {
-				valueToWatch = droneApp.myDrone.rgbcLux;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void pressureMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_PRESSURE) {
-				valueToWatch = droneApp.myDrone.pressure_Pascals;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void precisionGasMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_PRECISION_GAS) {
-				valueToWatch = droneApp.myDrone.precisionGas_ppmCarbonMonoxide;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void irTemperatureMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_IR_TEMPERATURE) {
-				valueToWatch = droneApp.myDrone.irTemperature_Farenheit;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void i2cRead(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void humidityMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_HUMIDITY) {	
-				valueToWatch = droneApp.myDrone.humidity_Percent;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void reducingGasMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_REDUCING_GAS) {	
-				valueToWatch = droneApp.myDrone.reducingGas_Ohm;
-				addData(valueToWatch);
-			}
-
-		}
-
-		@Override
-		public void oxidizingGasMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_OXIDIZING_GAS) {	
-				valueToWatch = droneApp.myDrone.oxidizingGas_Ohm;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void disconnectEvent(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void customEvent(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void connectionLostEvent(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void connectEvent(EventObject arg0) {
-
-
-		}
-
-		@Override
-		public void capacitanceMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_CAPACITANCE) {
-				valueToWatch = droneApp.myDrone.capacitance_femtoFarad;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void altitudeMeasured(EventObject arg0) {
-
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_ALTITUDE) {
-				valueToWatch = droneApp.myDrone.altitude_Feet;
-				addData(valueToWatch);
-			}
-		}
-
-		@Override
-		public void adcMeasured(EventObject arg0) {
-			if (sensorToWatch == droneApp.myDrone.QS_TYPE_ADC) {
-				valueToWatch =  droneApp.myDrone.externalADC_Volts;
-				addData(valueToWatch);
-			}
-		}
-	};
-
-	// We'll need to use our DroneStatusListener for graphing battery voltage
-	private DroneStatusListener gsListener = new DroneStatusListener() {
-		
-		@Override
-		public void unknownStatus(EventObject arg0) {
-			
-		}
-		
-		@Override
-		public void temperatureStatus(EventObject arg0) {
-			
-		}
-		
-		@Override
-		public void rgbcStatus(EventObject arg0) {
-			
-		}
-		
-		@Override
-		public void reducingGasStatus(EventObject arg0) {
-			
-		}
-		
-		@Override
-		public void pressureStatus(EventObject arg0) {
-			
-		}
-		
-		@Override
-		public void precisionGasStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void oxidizingGasStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void lowBatteryStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void irStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void humidityStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void customStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void chargingStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void capacitanceStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void batteryVoltageStatus(EventObject arg0) {
-			// We hard-coded in 42 since battery voltage is not in the API's quickSystem
-			if (sensorToWatch == 42) {
-				valueToWatch =  droneApp.myDrone.batteryVoltage_Volts;
-				addData(valueToWatch);
-			}
-		}
-		
-		@Override
-		public void altitudeStatus(EventObject arg0) {
-			
-			
-		}
-		
-		@Override
-		public void adcStatus(EventObject arg0) {
-			
-			
-		}
-	};
 
 	private static final int HISTORY_SIZE = 30; // Display last 30 measurements
 	private XYPlot dronePlot = null;
@@ -301,8 +68,7 @@ public class GraphActivity extends Activity {
 	protected void onDestroy() {
 		super.onDestroy();
 		// The listeners are registered on every create, so remove them on every destroy
-		droneApp.myDrone.unregisterDroneEventListener(geListener);
-		droneApp.myDrone.unregisterDroneStatusListener(gsListener);
+        droneApp.myDrone.unregisterDroneListener(droneHandler);
 
 		// If we are closing the graph, then we want to restore the Streaming Rate
 		if (isFinishing()) {
@@ -349,7 +115,7 @@ public class GraphActivity extends Activity {
 		
 		// Graph foramtting
 		dronePlot = (XYPlot)findViewById(R.id.dynamicPlot);
-		LineAndPointFormatter lF = new LineAndPointFormatter(Color.rgb(0, 0, 0), Color.rgb(0, 255, 0), null);
+		LineAndPointFormatter lF = new LineAndPointFormatter(Color.rgb(0, 0, 0), Color.rgb(0, 255, 0), null, null);
 		dronePlot.addSeries(droneValues, lF);
 		dronePlot.setDomainStepValue(1);
 		dronePlot.setTicksPerDomainLabel(10);
@@ -421,8 +187,7 @@ public class GraphActivity extends Activity {
 		dronePlot.setRangeLabel("Sensor Value");
 
 		// Register the listeners
-		droneApp.myDrone.registerDroneEventListener(geListener);
-		droneApp.myDrone.registerDroneStatusListener(gsListener);
+        droneApp.myDrone.registerDroneListener(droneHandler);
 
 	}
 

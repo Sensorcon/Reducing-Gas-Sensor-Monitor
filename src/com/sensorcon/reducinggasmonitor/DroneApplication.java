@@ -1,8 +1,8 @@
 package com.sensorcon.reducinggasmonitor;
 
-import com.sensorcon.sensordrone.Drone;
 
 import android.app.Application;
+import com.sensorcon.sensordrone.android.Drone;
 
 /**
  * We will make a class that extends Application to put our Drone in,

@@ -1,24 +1,6 @@
 package com.sensorcon.reducinggasmonitor;
 
 
-
-import java.util.EventObject;
-
-import com.sensorcon.sensordrone.Drone;
-import com.sensorcon.sensordrone.Drone.DroneEventListener;
-import com.sensorcon.sensordrone.Drone.DroneStatusListener;
-import com.sensorcon.sdhelper.ConnectionBlinker;
-import com.sensorcon.sdhelper.OnOffRunnable;
-import com.sensorcon.sdhelper.SDBatteryStreamer;
-import com.sensorcon.sdhelper.SDHelper;
-import com.sensorcon.sdhelper.SDStreamer;
-
-import android.media.AudioManager;
-import android.media.SoundPool;
-import android.media.SoundPool.OnLoadCompleteListener;
-import android.os.Bundle;
-import android.os.Handler;
-import android.preference.PreferenceManager;
 import android.annotation.SuppressLint;
 import android.app.ActionBar;
 import android.app.Activity;
@@ -29,39 +11,27 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.content.res.Configuration;
-import android.graphics.Color;
 import android.graphics.Point;
 import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
+import android.media.AudioManager;
+import android.media.SoundPool;
+import android.media.SoundPool.OnLoadCompleteListener;
+import android.os.Bundle;
+import android.os.Handler;
+import android.preference.PreferenceManager;
 import android.util.Log;
-import android.view.Display;
-import android.view.Gravity;
-import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.view.MotionEvent;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.*;
 import android.view.View.OnClickListener;
-import android.view.View.OnTouchListener;
-import android.view.Window;
-import android.widget.Button;
-import android.widget.CompoundButton;
-import android.widget.CompoundButton.OnCheckedChangeListener;
-import android.widget.ImageButton;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
-import android.widget.PopupWindow;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
-import android.widget.RelativeLayout;
-import android.widget.TableLayout;
-import android.widget.TableRow;
-import android.widget.TextView;
-import android.widget.Toast;
-import android.widget.ToggleButton;
-// Don't let eclipse import android.widget.TableLayout.LayoutParams for your TableRows!
+import android.widget.*;
 import android.widget.TableRow.LayoutParams;
+import com.sensorcon.sensordrone.DroneEventHandler;
+import com.sensorcon.sensordrone.DroneEventListener;
+import com.sensorcon.sensordrone.DroneEventObject;
+import com.sensorcon.sensordrone.DroneStatusListener;
+import com.sensorcon.sensordrone.android.tools.DroneConnectionHelper;
+import com.sensorcon.sensordrone.android.tools.DroneQSStreamer;
+
+// Don't let eclipse import android.widget.TableLayout.LayoutParams for your TableRows!
 
 /**
  * Reducing Gas Monitor for the Sensordrone
@@ -201,381 +171,48 @@ public class MainActivity extends Activity {
 	 * This is a lookup table to decide how many leds to light up in the ticker
 	 */
 	private float[] LUT = {1, (float)0.7, (float)0.6, (float)0.5, (float)0.4, (float)0.3, (float)0.2, (float)0.1, (float)0.09};
-	
-	/*
-	 * Because Android will destroy and re-create things on events like orientation changes,
-	 * we will need a way to store our objects and return them in such a case. 
-	 * 
-	 * A simple and straightforward way to do this is to create a class which has all of the objects
-	 * and values we want don't want to get lost. When our orientation changes, it will reload our
-	 * class, and everything will behave as normal! See onRetainNonConfigurationInstance in the code
-	 * below for more information.
-	 * 
-	 * A lot of the GUI set up will be here, and initialized via the Constructor
-	 */
-	public final class Storage {
-		
-		// A ConnectionBLinker from the SDHelper Library
-		public ConnectionBlinker myBlinker;
 
-		// Our Listeners
-		public DroneEventListener deListener;
-		public DroneStatusListener dsListener;
-		public String MAC = "";
 
-		// An int[] that will hold the QS_TYPEs for our sensors of interest
-		public int qsSensor;
 
-		// Text to display
-		public String[] sensorNames= {
-				"Reducing Gas"
-		};
-		
-		// Another object from the SDHelper library. It helps us set up our pseudo streaming
-		public SDStreamer streamer;
+    // Our Listeners
+    public DroneEventListener deListener;
+    public DroneStatusListener dsListener;
+    public DroneEventHandler droneHandler;
+    public String MAC = "";
 
-		// We only want to notify of a low battery once,
-		// but the event might be triggered multiple times.
-		// We use this to try and show it only once
-		public boolean lowbatNotify;
+    // An int[] that will hold the QS_TYPEs for our sensors of interest
+    public int qsSensor;
 
-		// Our constructor to set up the GUI
-		public Storage(Context context) {
+    // Text to display
+    public String[] sensorNames= {
+            "Reducing Gas"
+    };
 
-			qsSensor = droneApp.myDrone.QS_TYPE_REDUCING_GAS;
+    // Another object from the SDHelper library. It helps us set up our pseudo streaming
+    public DroneQSStreamer streamer;
 
-			// This will Blink our Drone, once a second, Blue
-			myBlinker = new ConnectionBlinker(droneApp.myDrone, 1000, 0, 0, 255);
+    // We only want to notify of a low battery once,
+    // but the event might be triggered multiple times.
+    // We use this to try and show it only once
+    public boolean lowbatNotify;
 
-			streamer = new SDStreamer(droneApp.myDrone, qsSensor);
-
-			/*
-			 * Let's set up our Drone Event Listener.
-			 * 
-			 * See adcMeasured for the general flow for when a sensor is measured.
-			 * 
-			 */
-			deListener = new DroneEventListener() {
-
-				@Override
-				public void adcMeasured(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void altitudeMeasured(EventObject arg0) {
-
-				}
-
-				@Override
-				public void capacitanceMeasured(EventObject arg0) {
-
-				}
-
-				@Override
-				public void connectEvent(EventObject arg0) {
-					
-					Editor prefEditor = preferences.edit();
-					prefEditor.putString(LAST_MAC, droneApp.myDrone.lastMAC);
-					prefEditor.commit();
-					
-					// Things to do when we connect to a Sensordrone
-					quickMessage("Connected!");
-					tvUpdate(tvConnectionStatus, "Connected to: " + droneApp.myDrone.lastMAC);
-					// Flash teh LEDs green
-					myHelper.flashLEDs(droneApp.myDrone, 3, 100, 0, 255, 0);
-					// Turn on our blinker
-					myBlinker.enable();
-					myBlinker.run();
-					// People don't need to know how to connect if they are already connected
-					tvConnectInfo.setVisibility(TextView.INVISIBLE);
-					// Notify if there is a low battery
-					lowbatNotify = true;
-					
-                    suspendCount = false;
-                    // Check to see if reconnect
-                    if(on) {
-                        // Enable our steamer
-                        box.streamer.enable();
-                        // Enable the sensor
-                        droneApp.myDrone.quickEnable(box.qsSensor);
-                    }
-				}
-
-				@Override
-				public void connectionLostEvent(EventObject arg0) {
-
-					/*
-					 * Things to do if we think the connection has been lost.
-					 */
-					
-					// If in the middle of a countdown, stop it
-					suspendCount = true;
-					
-					// Turn off the blinker
-					myBlinker.disable();
-
-					// notify the user
-					tvUpdate(tvConnectionStatus, "Connection Lost!"); 
-					quickMessage("Connection lost! Trying to re-connect!");
-
-					// Try to reconnect once, automatically
-					if (droneApp.myDrone.btConnect(droneApp.myDrone.lastMAC)) {
-						// A brief pause
-						try {
-							Thread.sleep(500);
-						} catch (InterruptedException e) {
-							e.printStackTrace();
-						}
-					} else {
-						quickMessage("Re-connect failed");
-						suspendCount = false;
-						doOnDisconnect();
-					}
-				}
-
-				@Override
-				public void customEvent(EventObject arg0) {
-
-				}
-
-				@Override
-				public void disconnectEvent(EventObject arg0) {
-					// notify the user
-					quickMessage("Disconnected!");	
-					tvConnectionStatus.setText("Disconnected");
-				}
-
-				@Override
-				public void oxidizingGasMeasured(EventObject arg0) {
-				}
-
-				@Override
-				public void reducingGasMeasured(EventObject arg0) {
-					val = droneApp.myDrone.reducingGas_Ohm ;
-					
-					tvUpdate(tvSensorValue, String.format("%.0f", val/1000) + " KOhms");
-					streamer.streamHandler.postDelayed(streamer, droneApp.streamingRate);
-				}
-
-				@Override
-				public void humidityMeasured(EventObject arg0) {
-				
-				}
-
-				@Override
-				public void i2cRead(EventObject arg0) {
-
-				}
-
-				@Override
-				public void irTemperatureMeasured(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void precisionGasMeasured(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void pressureMeasured(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void rgbcMeasured(EventObject arg0) {
-
-				}
-
-				@Override
-				public void temperatureMeasured(EventObject arg0) {
-				}
-
-				@Override
-				public void uartRead(EventObject arg0) {
-
-				}
-
-				@Override
-				public void unknown(EventObject arg0) {
-
-				}
-
-				@Override
-				public void usbUartRead(EventObject arg0) {
-
-				}
-			};
-
-
-			/*
-			 * Set up our status listener
-			 * 
-			 * see adcStatus for the general flow for sensors.
-			 */
-			dsListener = new DroneStatusListener() {
-
-
-				@Override
-				public void adcStatus(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void altitudeStatus(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void batteryVoltageStatus(EventObject arg0) {
-//					// This is triggered when the battery voltage has been measured.
-//					String bVoltage = String.format("%.2f", droneApp.myDrone.batteryVoltage_Volts) + " V";
-//					tvUpdate(bvValue, bVoltage);
-//					// Set up the next measurement
-//					bvStreamer.streamHandler.postDelayed(bvStreamer, droneApp.streamingRate);
-				}
-
-				@Override
-				public void capacitanceStatus(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void chargingStatus(EventObject arg0) {
-
-
-				}
-
-				@Override
-				public void customStatus(EventObject arg0) {
-
-
-				}
-
-				@Override
-				public void humidityStatus(EventObject arg0) {
-				
-				}
-
-				@Override
-				public void irStatus(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void lowBatteryStatus(EventObject arg0) {
-					// If we get a low battery, notify the user
-					// and disconnect
-					
-					// This might trigger a lot (making a call the the LEDS will trigger it,
-					// so the myBlinker will trigger this once a second.
-					// calling myBlinker.disable() even sets LEDS off, which will trigger it...
-					if (lowbatNotify) {
-						lowbatNotify = false; // Set true again in connectEvent
-						myBlinker.disable();
-						doOnDisconnect(); // run our disconnect routine
-						// Notify the user
-						tvUpdate(tvConnectionStatus, "Low Battery: Disconnected!");
-						myInfo.lowBattery();
-					}
-
-				}
-
-				@Override
-				public void oxidizingGasStatus(EventObject arg0) {
-				}
-
-				@Override
-				public void precisionGasStatus(EventObject arg0) {
-				}
-
-				@Override
-				public void pressureStatus(EventObject arg0) {
-				
-				}
-
-				@Override
-				public void reducingGasStatus(EventObject arg0) {
-					if (droneApp.myDrone.reducingGasStatus) {
-						streamer.run();
-					}
-				}
-
-				@Override
-				public void rgbcStatus(EventObject arg0) {
-					
-				}
-
-				@Override
-				public void temperatureStatus(EventObject arg0) {				
-				}
-
-				@Override
-				public void unknownStatus(EventObject arg0) {
-				}
-			};
-			
-
-			/*
-			 * Register the listeners
-			 * 
-			 * This is done once on create. Disable them in onDestroy
-			 */
-			droneApp.myDrone.registerDroneEventListener(deListener);
-			droneApp.myDrone.registerDroneStatusListener(dsListener);
-			
-
-		} // Constructor
-
-	}
-
-	/*
-	 * Our program will need one of these classes
-	 */
-	public Storage box;
-
-	/*
-	 * We use this so we can restore our data. Note that this has been deprecated as of 
-	 * Android API 13. The official Android Developer's recommendation is 
-	 * if you are targeting HONEYCOMB or later, consider instead using a 
-	 * Fragment with Fragment.setRetainInstance(boolean)
-	 * (Also available via the android-support libraries for older versions)
-	 */
-	@Override
-	public Storage onRetainNonConfigurationInstance() {
-		
-		// Make a new Storage object from our old data
-		Storage bin = box;
-		// Return our old data
-		return bin;
-	}
-
-	/*
-	 * We will use some stuff from our Sensordrone Helper library
-	 */
-	public SDHelper myHelper = new SDHelper();
+	public DroneConnectionHelper myHelper;
 	
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
 
-		if (isFinishing()) {
-			// Try and nicely shut down
-			doOnDisconnect();
-			// A brief delay
-			try {
-				Thread.sleep(500);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-			// Unregister the listener
-			droneApp.myDrone.unregisterDroneEventListener(box.deListener);
-			droneApp.myDrone.unregisterDroneStatusListener(box.dsListener);
+        // Try and nicely shut down
+        doOnDisconnect();
+        // A brief delay
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        // Unregister the listener
+        droneApp.myDrone.unregisterDroneListener(droneHandler);
 
-		} else { 
-			//It's an orientation change.
-		}
 	}
 	
 	@Override
@@ -618,17 +255,11 @@ public class MainActivity extends Activity {
 		// Get out Application so we have access to our Drone
 		droneApp = (DroneApplication)getApplication();
 
+        myHelper = new DroneConnectionHelper();
+
 		// Set up out AlertInfo
 		myInfo = new AlertInfo(this);
-		
-		/*
-		 * If we have destroyed and recreated our activity, due to something like
-		 * and orientation change, this will restore it.
-		 * 
-		 * We want to restore it, because our Drone object remembers important things...
-		 * like if it was connected or not.
-		 */
-		box = new Storage(this);
+
 		
 		/*
 		 * Set up all of the gui stuff
@@ -883,14 +514,100 @@ public class MainActivity extends Activity {
 		// Check to see if user still wants intro screen to show
 		pStream = new PreferencesStream();
 		pStream.initFile(this);
-		String[] preferences = new String[1];
-		preferences = pStream.readPreferences();
+		String[] parsePref = new String[1];
+        parsePref = pStream.readPreferences();
 		
-		if(!preferences[0].equals("DISABLE INTRO")){
+		if(!parsePref[0].equals("DISABLE INTRO")){
 			showIntroDialog();
 		}
 	
 		warmUpWindow1 = new PopupWindow(this);
+
+        qsSensor = droneApp.myDrone.QS_TYPE_REDUCING_GAS;
+
+
+        streamer = new DroneQSStreamer(droneApp.myDrone, qsSensor);
+
+        droneHandler = new DroneEventHandler() {
+            @Override
+            public void parseEvent(DroneEventObject droneEventObject) {
+
+                if (droneEventObject.matches(DroneEventObject.droneEventType.CONNECTED)) {
+                    Editor prefEditor = preferences.edit();
+                    prefEditor.putString(LAST_MAC, droneApp.myDrone.lastMAC);
+                    prefEditor.commit();
+
+                    // Things to do when we connect to a Sensordrone
+                    quickMessage("Connected!");
+                    tvUpdate(tvConnectionStatus, "Connected to: " + droneApp.myDrone.lastMAC);
+                    // Flash teh LEDs green
+                    droneApp.myDrone.setLEDs(0,0,126);
+                    // People don't need to know how to connect if they are already connected
+                    tvConnectInfo.setVisibility(TextView.INVISIBLE);
+                    // Notify if there is a low battery
+                    lowbatNotify = true;
+
+                    suspendCount = false;
+                    // Check to see if reconnect
+                    if(on) {
+                        // Enable our steamer
+                        streamer.enable();
+                        // Enable the sensor
+                        droneApp.myDrone.quickEnable(qsSensor);
+                    }
+                } else if (droneEventObject.matches(DroneEventObject.droneEventType.CONNECTION_LOST)) {
+                    // If in the middle of a countdown, stop it
+                    suspendCount = true;
+
+
+                    // notify the user
+                    tvUpdate(tvConnectionStatus, "Connection Lost!");
+                    quickMessage("Connection lost! Trying to re-connect!");
+
+                    // Try to reconnect once, automatically
+                    if (droneApp.myDrone.btConnect(droneApp.myDrone.lastMAC)) {
+                        // A brief pause
+                        try {
+                            Thread.sleep(500);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        quickMessage("Re-connect failed");
+                        suspendCount = false;
+                        doOnDisconnect();
+                    }
+                } else if (droneEventObject.matches(DroneEventObject.droneEventType.DISCONNECTED)) {
+                    // notify the user
+                    quickMessage("Disconnected!");
+                    tvConnectionStatus.setText("Disconnected");
+                } else if (droneEventObject.matches(DroneEventObject.droneEventType.REDUCING_GAS_MEASURED)) {
+                    val = droneApp.myDrone.reducingGas_Ohm ;
+
+                    tvUpdate(tvSensorValue, String.format("%.0f", val/1000) + " KOhms");
+                    streamer.streamHandler.postDelayed(streamer, droneApp.streamingRate);
+                } else if (droneEventObject.matches(DroneEventObject.droneEventType.LOW_BATTERY)) {
+                    // If we get a low battery, notify the user
+                    // and disconnect
+
+                    // This might trigger a lot (making a call the the LEDS will trigger it,
+                    // so the myBlinker will trigger this once a second.
+                    // calling myBlinker.disable() even sets LEDS off, which will trigger it...
+                    if (lowbatNotify && droneApp.myDrone.batteryVoltage_Volts < 3.1) {
+                        lowbatNotify = false; // Set true again in connectEvent
+                        doOnDisconnect(); // run our disconnect routine
+                        // Notify the user
+                        tvUpdate(tvConnectionStatus, "Low Battery: Disconnected!");
+                        myInfo.lowBattery();
+                    }
+                } else if (droneEventObject.matches(DroneEventObject.droneEventType.REDUCING_GAS_ENABLED)) {
+                    streamer.run();
+                }
+            }// parseEvent
+        };
+
+
+        droneApp.myDrone.registerDroneListener(droneHandler);
 	}
 
 	/**
@@ -915,9 +632,9 @@ public class MainActivity extends Activity {
 		if(droneApp.myDrone.isConnected) {
 			if(!on) {
 				// Enable our steamer
-				box.streamer.enable();
+				streamer.enable();
 				// Enable the sensor
-				droneApp.myDrone.quickEnable(box.qsSensor);
+				droneApp.myDrone.quickEnable(qsSensor);
 				
 				on = true;
 				
@@ -954,7 +671,7 @@ public class MainActivity extends Activity {
 				if(!inCountdown1Mode) {
 					Intent myIntent = new Intent(getApplicationContext(), GraphActivity.class);
 					myIntent.putExtra("SensorName", "Reducing Gas");
-					myIntent.putExtra("quickInt", box.qsSensor);
+					myIntent.putExtra("quickInt", qsSensor);
 					startActivity(myIntent);
 				}
 			} else {
@@ -1095,9 +812,9 @@ public class MainActivity extends Activity {
 		setLEDsHandler.removeCallbacksAndMessages(null);
 		
 		// Stop taking measurements
-		box.streamer.disable();
+		streamer.disable();
 		// Disable the sensor
-		droneApp.myDrone.quickDisable(box.qsSensor);
+		droneApp.myDrone.quickDisable(qsSensor);
 	}
 	
 	/*
@@ -1555,9 +1272,7 @@ public class MainActivity extends Activity {
 
 				resetAllOperations();
 				
-				// Turn off myBlinker
-				box.myBlinker.disable();
-				
+
 				// Make sure the LEDs go off
 				if (droneApp.myDrone.isConnected) {
 					droneApp.myDrone.setLEDs(0, 0, 0);
